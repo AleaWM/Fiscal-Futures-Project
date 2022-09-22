@@ -272,7 +272,8 @@ exp_temp <- exp_temp %>%
 
 ### Pensions
 
-State payments to the following pension systems:   
+State payments to the following pension systems:  
+
 • Teachers Retirement System (TRS)  
 • State Employee Retirement System (SERS)  
 • State University Retirement System (SURS)  
@@ -295,6 +296,7 @@ Operating costs of administering the pensions are not included in this category.
 
 
 - object = 4431 catches most pension
+
 ```{r pensions}
 
 exp_temp <-  exp_temp %>% 
@@ -305,24 +307,36 @@ exp_temp <-  exp_temp %>%
   (object=="1298" & (fy==2010 | fy==2011) & (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement
  
   (object=="4431" | (object>"1159" & object<"1166")  ) ~ 1, # 4431 = easy to find pension items
-   # objects 1159 to 1166 are other objects to check for in_ff=0 later
+   # objects 1159 to 1166 are other objects to check later for in_ff=0 
  
  fund == "0825" ~ 4, # pension obligation acceleration bond
                                         TRUE ~ 0))
 #special accounting of pension obligation bond (POB)-funded contributions to JRS, SERS, GARS, TRS 
 
+
 table(exp_temp$pension)
 
+
+
 exp_temp <- exp_temp %>% 
-  mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", object)) %>%
+  mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", object)) %>% # why this step?
   mutate(pension =  ifelse(pension ==1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded. Allows or checking work in between steps.
   mutate(in_ff = ifelse((pension ==2 | pension ==3 | pension == 4), "1", in_ff))
 
 table(exp_temp$pension) 
-table(exp_temp$in_ff)
+
+
+# create file with all pension items to find any mistakes
+exp_temp %>% 
+  filter(pension > 0) %>%
+  write_csv("all_pensions.csv")
+
+exp_temp %>% 
+  filter(pension > 0)
 
 ```
-Pension = 2 represents teacher retirement pension payments that were excluded from the fiscal futures analysis by default(in_ff=0) but should be included. Pension2_amt should be added to revenue side.
+
+Pension = 2 represents retirement pension payments that were excluded from the fiscal futures analysis by default (in_ff=0) but should be included. Pension2_amt should be added to revenue side.
 
 Summarizes the total expenditures for each pension code for each year.  Pension contributions to be added to "Other Revenues" in later steps:
 
@@ -342,7 +356,7 @@ pension2_fy22<- pension_2_long %>%
 
 pension2_fy22 # used in final tables
 
-# remove pension items to avoid double counting
+# items flagged as pensions get agency code 901 for State Pension Contributions
 exp_temp <- exp_temp %>% 
   mutate(agency = ifelse(pension>0, "901", as.character(agency)),
          agency_name = ifelse(agency == "901", "State Pension Contributions", as.character(agency_name)))
@@ -404,8 +418,8 @@ eehc2_amt <- eehc_2_long %>% group_by(fy) %>%
 exp_temp <- exp_temp %>% mutate(expenditure = ifelse(object == "1180" | (obj_seq_type == "19000000" & fy > 2020), 0, expenditure)) %>% filter(expenditure > 0)
 
 # doesn't work but would be easier to drop eehc values from exp_temp
-exp_temp <- anti_join(exp_temp, eehc_2_long)
-, by = c("fy", "fund", "fund_name", "agency", "agency_name", "appr_org", "org_name", "obj_seq_type", "appn_net_xfer", "expenditure", "data_source", "object", "category", "sequence", "type", "trans_agency", "trans_type", "wh_approp_name"))
+# exp_temp <- anti_join(exp_temp, eehc_2_long)
+#, by = c("fy", "fund", "fund_name", "agency", "agency_name", "appr_org", "org_name", "obj_seq_type", "appn_net_xfer", "expenditure", "data_source", "object", "category", "sequence", "type", "trans_agency", "trans_type", "wh_approp_name"))
 # should remove the 146 observations from exp_temp
 
 # 21337 - 149 = 21188 obs (expected value after antijoin)
