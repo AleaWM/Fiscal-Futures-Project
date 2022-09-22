@@ -280,11 +280,13 @@ State payments to the following pension systems:
 • Judges Retirement System (JRS)  
 • General Assembly Retirement System (GARS)  
 
-Operating costs of administering the pensions are not included in this category. Fiscal Futures only includes the state’s payments into the pension funds as "pension expenditures." Note also that these payments are subtracted from reported agency spending in calculating other categories.  
+"Operating costs of administering the pensions are not included in this category. Fiscal Futures only includes the state’s payments into the pension funds as "pension expenditures." Note also that these payments are subtracted from reported agency spending in calculating other categories.  "
+
+- Then why are we including objects 1160-1165
 
 > obj_seq_type== "11600000" should NOT be included in pensions, correct?
 
-- check fund 0183 before 2015   
+- check fund 0183 from 1999 to 2005, org_name = Serve America, fund_name is post traumatic stress awareness
 - added "& fund !=0183" to teacher retirement pensions code below  
 
 > why are local health insurance reserves included as pensions? 
@@ -299,6 +301,8 @@ Operating costs of administering the pensions are not included in this category.
 
 ```{r pensions}
 
+#special accounting of pension obligation bond (POB)-funded contributions to JRS, SERS, GARS, TRS 
+
 exp_temp <-  exp_temp %>% 
   arrange(fund) %>%
   mutate(pension = case_when( 
@@ -307,23 +311,14 @@ exp_temp <-  exp_temp %>%
   (object=="1298" & (fy==2010 | fy==2011) & (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement
  
   (object=="4431" | (object>"1159" & object<"1166")  ) ~ 1, # 4431 = easy to find pension items
-   # objects 1159 to 1166 are other objects to check later for in_ff=0 
+   # objects 1159 to 1166 are all considered Retirement by Comptroller 
+  # object == 1167 also appears to be Other Retirement but isn't used yet
  
  fund == "0825" ~ 4, # pension obligation acceleration bond
                                         TRUE ~ 0))
-#special accounting of pension obligation bond (POB)-funded contributions to JRS, SERS, GARS, TRS 
 
 
 table(exp_temp$pension)
-
-
-
-exp_temp <- exp_temp %>% 
-  mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", object)) %>% # why this step?
-  mutate(pension =  ifelse(pension ==1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded. Allows or checking work in between steps.
-  mutate(in_ff = ifelse((pension ==2 | pension ==3 | pension == 4), "1", in_ff))
-
-table(exp_temp$pension) 
 
 
 # create file with all pension items to find any mistakes
@@ -334,11 +329,21 @@ exp_temp %>%
 exp_temp %>% 
   filter(pension > 0)
 
+
+exp_temp <- exp_temp %>% 
+ # mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", object)) %>% # why this step?
+  mutate(pension =  ifelse(pension ==1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded. Allows or checking work in between steps.
+  mutate(in_ff = ifelse((pension ==2 | pension ==3 | pension == 4), "1", in_ff))
+
+table(exp_temp$pension) 
+
+
+
 ```
 
-Pension = 2 represents retirement pension payments that were excluded from the fiscal futures analysis by default (in_ff=0) but should be included. Pension2_amt should be added to revenue side.
+Pension = 2 represents retirement pension payments that were excluded from the fiscal futures analysis by default ( in_ff was 0 because *they were categorized as fund category I. State Trust Funds*) but should be included and added to the revenue side under "Other Revenues" in later steps.
 
-Summarizes the total expenditures for each pension code for each year.  Pension contributions to be added to "Other Revenues" in later steps:
+Summarizes the total expenditures for each pension code for each year. 
 
 ```{r pensions2}
 
@@ -347,30 +352,33 @@ pension_2_long <- exp_temp %>%
   filter(pension == 2 ) %>%
   rename(year = fy) 
 
-exp_temp <- anti_join(exp_temp, pension_2_long)  # 150 observations removed with antijoin
+
+exp_temp <- anti_join(exp_temp, pension_2_long)  # 148 observations removed with antijoin
 
 
 pension2_fy22<- pension_2_long %>% 
   group_by(year) %>% 
   summarize(pension_amt = sum(expenditure)/1000000)
 
-pension2_fy22 # used in final tables
-
-# items flagged as pensions get agency code 901 for State Pension Contributions
+# all other pensions (1,3,4) codes get agency code 901 for State Pension Contributions
 exp_temp <- exp_temp %>% 
   mutate(agency = ifelse(pension>0, "901", as.character(agency)),
          agency_name = ifelse(agency == "901", "State Pension Contributions", as.character(agency_name)))
 
+pension2_fy22 # used in final tables
+
+pension_2_long %>% filter(fund == "0138" | fund == "0183" | fund == "0190" | fund == "0193") # should these be included?
+
 ```
 
-
+> Should the items above be considered pension expenditures? Currently they are coded as pension == 2 and added to revenues in later steps.
 
 
 ### Drop Interfund transfers
 
 - object == 1993 is for interfund cash transfers  
-- agency = 799 is for statutory transfers  
-- object =  1298 is for purchase of investments and is not spending EXCEPT for pensions in 2010 and 2011 (and were recoded already to object == "4431"). Over 168,000 observations remain.  
+- agency == 799 is for statutory transfers  
+- object == 1298 is for purchase of investments and is not spending EXCEPT for pensions in 2010 and 2011 (and were recoded already to object == "4431"). Over 168,000 observations remain.  
 
 ```{r drop-transfers}
 
@@ -387,8 +395,9 @@ exp_temp <- anti_join(exp_temp, transfers_drop) # 13650 obs dropped with antijoi
 
 ### State employee healthcare 
 
-Employer contributions for group insurance (contributions count as a revenue source).  
-Creates the employee health costs amount to be added to the revenue side: Employer contributions are a revenue source and should be subtracted from state employee healthcare costs (expenditures + premiums = net costs).
+Employer contributions for group insurance (contributions count as a revenue source).
+
+Creates the employee healthcare costs amount to be added to the revenue side __that would have been excluded due to being I. State Trust Funds and therefore in_ff=0 __: Employer contributions are a revenue source and should be subtracted from state employee healthcare costs (expenditures + premiums = net costs).
 
 > Added line of code Sept. 21 2022: eehc = ifelse(obj_seq_type == "19000000", 1, eehc)) %>%
 
@@ -401,32 +410,40 @@ Creates the employee health costs amount to be added to the revenue side: Employ
 
 # identifies eehc values that would have been excluded due to in_ff == 0 before recoding
 
-eehc_2_long <- exp_temp %>% 
+exp_temp <- exp_temp %>% 
   mutate(eehc = ifelse(object == "1180", 1, 0)) %>%
-  mutate(eehc = ifelse(obj_seq_type == "19000000" & fy > 2020, 1, eehc)  ) %>%
+  mutate(eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 1, eehc)  ) %>%
   mutate(eehc = ifelse((eehc == 1 & in_ff =="0"), 2, eehc)) %>% # if eehc == 1 AND in_ff was zero, then recode eehc to 2, otherwise leave eehc as it was.  Mostly helps flag things that would have been excluded due to default in_ff coding 
-  mutate(in_ff = ifelse(eehc == 2, "1", in_ff) ) %>% # recodes in_ff to 1 if eehc was coded to 2 to make sure they are included in fiscal futures.
+  mutate(in_ff = ifelse(eehc == 2, "1", in_ff) ) 
+
+
+eehc_2_long <- exp_temp %>%
+# recodes in_ff to 1 if eehc was coded to 2 to make sure they are included in fiscal futures.
   filter(eehc == 2) # keeps only eehc == 2, items that would have been excluded based on in_ff original coding
 
 # 146 observations
+eehc_2_long
 
 # summarizes by year totals for state employee healthcare costs == 2
 eehc2_amt <- eehc_2_long %>% group_by(fy) %>%
   summarize(eehc = sum(expenditure)/1000000)
 
-# avoid double counting by recoding 
-exp_temp <- exp_temp %>% mutate(expenditure = ifelse(object == "1180" | (obj_seq_type == "19000000" & fy > 2020), 0, expenditure)) %>% filter(expenditure > 0)
+# examine all eehc items in csv file to check mistakes
+exp_temp %>%  
+  mutate(eehc = ifelse(object == "1180", 1, 0)) %>%
+  mutate(eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 1, eehc)  ) %>%
+  mutate(eehc = ifelse((eehc == 1 & in_ff =="0"), 2, eehc)) %>% 
+  filter(eehc >0) %>% 
+  write_csv("all_eehc.csv")
 
-# doesn't work but would be easier to drop eehc values from exp_temp
-# exp_temp <- anti_join(exp_temp, eehc_2_long)
-#, by = c("fy", "fund", "fund_name", "agency", "agency_name", "appr_org", "org_name", "obj_seq_type", "appn_net_xfer", "expenditure", "data_source", "object", "category", "sequence", "type", "trans_agency", "trans_type", "wh_approp_name"))
-# should remove the 146 observations from exp_temp
+exp_temp <- anti_join(exp_temp, eehc_2_long, by = c("fy", "fund", "fund_name", "agency", "agency_name", "appr_org", "org_name", "obj_seq_type", "appn_net_xfer", "expenditure", "data_source", "object", "category", "sequence", "type", "trans_agency", "trans_type", "wh_approp_name"))
+# should remove the 146 eehc==2 observations from exp_temp
 
-# 21337 - 149 = 21188 obs (expected value after antijoin)
+# 149451 - 146 = 149305 obs (expected value after antijoin)
 ```
 
 
-State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions.Employee contributions are not considered a revenue source or an expenditure in our analysis.
+State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employee contributions are not considered a revenue source or an expenditure in our analysis.
 
 
 ```{r state-employee-healthcare}
@@ -440,7 +457,9 @@ exp_temp <- exp_temp %>%
 
       TRUE ~ as.character(agency))) %>%
   mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
-         group = ifelse(agency == "904", "904", as.character(agency))) # creates group variable. Default is group = agency number
+         group = ifelse(agency == "904", "904", as.character(agency))) # creates group variable. 
+
+#Default group = agency number
 
 
 ```
@@ -486,7 +505,7 @@ table(exp_temp$group)
 
 exp_temp <- exp_temp %>% filter(in_ff != 0) # drops in_ff = 0 funds AFTER dealing with net-revenue above
 
-# 149309 obs to 145190 obs after filtering !=0
+# 149305 obs to 145185 obs after filtering !=0
 
 ```
 
