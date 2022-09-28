@@ -1468,11 +1468,13 @@ exp_long %>%
 
 # CAGR / Growth
 
+> STILL FOR FY21 calculations, will update later.
+
 Each year, you will need to update the CAGR formulas! 
 
 `calc_cagr` is a function created for calculating the CAGRs for different spans of time. 
 
-```{r CAGR-expenditures, eval = FALSE}
+```{r CAGR-expenditures}
  
 # function for calculating the CAGR
 calc_cagr <- function(df, n) {
@@ -1592,7 +1594,10 @@ Expenditure and Revenue Growth using a lag formula:
 
 > Final column not done yet
 
-```{r eval = FALSE}
+> These calculations are  still for fy20 to fy21 change!! Will be updated later for fy 22 document.
+
+```{r }
+
 revenue_change <- rev_long %>%
   select(-c(type,Category)) %>%
   filter(Year > 2019) %>%
@@ -1621,7 +1626,7 @@ expenditure_change
 
 Saves main items in one excel file named `summary_file.xlsx`. Delete `eval=FALSE` to run on local computer.
 
-```{r eval=FALSE}
+```{r }
 #install.packages("openxlsx")
 library(openxlsx)
 

@@ -407,14 +407,19 @@ Creates the employee healthcare costs amount to be added to the revenue side __t
 - object 1900 is for Lump Sums and Other Purposes
 
 
+eehc_2_long contains all employer contributions that are not for healthcare or health insurance. Employer contributions are considered a revenue source and added to All Other Revenue in the Pivoting Step laer.  
+
+> Note that a pension contribution ended up in here. Fix that too. 
+> Until 2002, a child support contribution trust fund was included that had large values.
 
 ```{r eehc}
 
-# identifies eehc values that would have been excluded due to in_ff == 0 before recoding
+# catches non-healthcare employer contributions that would have been excluded due to in_ff == 0 before recoding.
+#healthcare employer contributions have in_ff=1
 
 exp_temp <- exp_temp %>% 
   mutate(eehc = ifelse(object == "1180", 1, 0)) %>%
-  mutate(eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 1, eehc)  ) %>%
+  #mutate(eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 1, eehc)  ) %>%
   #  mutate(expenditure = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 0, expenditure)  ) %>% # Francis's method 9.22.22
   mutate(eehc = ifelse((eehc == 1 & in_ff =="0"), 2, eehc)) %>% # if eehc == 1 AND in_ff was zero, then recode eehc to 2, otherwise leave eehc as it was.  Mostly helps flag things that would have been excluded due to default in_ff coding 
   mutate(in_ff = ifelse(eehc == 2, "1", in_ff) ) 
@@ -431,13 +436,13 @@ eehc_2_long
 eehc2_amt <- eehc_2_long %>% group_by(fy) %>%
   summarize(eehc = sum(expenditure, na.rm = TRUE)/1000000)
 
-# examine all eehc items in csv file to check mistakes
-exp_temp %>%  
-  mutate(eehc = ifelse(object == "1180", 1, 0)) %>%
-  mutate(eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 1, eehc)  ) %>%
-  mutate(eehc = ifelse((eehc == 1 & in_ff =="0"), 2, eehc)) %>% 
-  filter(eehc >0) %>% 
-  write_csv("all_eehc.csv")
+# # examine all eehc items in csv file to check mistakes
+# exp_temp %>%  
+#   mutate(eehc = ifelse(object == "1180", 1, 0)) %>%
+#   mutate(eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 1, eehc)  ) %>%
+#   mutate(eehc = ifelse((eehc == 1 & in_ff =="0"), 2, eehc)) %>% 
+#   filter(eehc >0) %>% 
+#   write_csv("all_eehc.csv")
 
 exp_temp <- anti_join(exp_temp, eehc_2_long, by = c("fy", "fund", "fund_name", "agency", "agency_name", "appr_org", "org_name", "obj_seq_type", "appn_net_xfer", "expenditure", "data_source", "object", "category", "sequence", "type", "trans_agency", "trans_type", "wh_approp_name"))
 # should remove the 146 eehc==2 observations from exp_temp
@@ -446,10 +451,82 @@ exp_temp <- anti_join(exp_temp, eehc_2_long, by = c("fy", "fund", "fund_name", "
 ```
 
 
+```{r eehc1}
+
+# eehc = 0 means it is NOT a state healthcare cost
+# eehc = 1 means it is a state employee healthcare cost
+
+group_ins <- exp_temp %>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 1998-2005 and 2013-present
+   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) )%>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 2006-2012
+    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
+  filter(eehc == 0) %>% 
+    group_by(fy) %>% 
+    summarize(dropped_group_premiums = sum(expenditure))
+
+
+healthcare_costs <- exp_temp %>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 1998-2005 and 2013-present
+   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) )%>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 2006-2012
+    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
+  mutate(expenditure = ifelse(eehc==0, 0, expenditure)) %>%    
+  group_by(fy) %>% 
+    summarize(cost_of_provision = sum(expenditure))
+
+exp_temp <- exp_temp %>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 1998-2005 and 2013-present
+   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) )%>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 2006-2012
+    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) ) %>%
+  
+  mutate(expenditure = ifelse(eehc==0, 0, expenditure)) 
+
+exp_temp_check <- exp_temp %>% 
+  mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
+      fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management Bureau of benefits using health insurance reserve 
+      fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services using health insurance reserve - stopped using this in 2012
+    #  fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2002 & fy<2006) ~ "904",
+      
+    #  fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2020) ~ "904",
+      
+    #  obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & (fy>2020) ~ "904",
+
+      TRUE ~ as.character(agency))) %>%
+  mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
+         group = ifelse(agency == "904", "904", as.character(agency))) %>% # creates group variable
+filter(group == "904") %>% group_by(fy) %>% summarise(healthcare_cost = sum(expenditure))
+
+exp_temp_check
+
+# Looks good, Sept 28 AWM
+
+exp_temp <- exp_temp %>% 
+  mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
+      fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management Bureau of benefits using health insurance reserve 
+      fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services using health insurance reserve - stopped using this in 2012
+      TRUE ~ as.character(agency))) %>%
+  mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
+         group = ifelse(agency == "904", "904", as.character(agency)))  # creates group variable
+
+#Default group = agency number
+
+```
+
+
+
+
 State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employee contributions are not considered a revenue source or an expenditure in our analysis.
 
 
-```{r state-employee-healthcare}
+```{r state-employee-healthcare, eval = FALSE}
 
 exp_temp <- exp_temp %>% 
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
@@ -514,6 +591,10 @@ exp_temp <- exp_temp %>% filter(in_ff != 0) # drops in_ff = 0 funds AFTER dealin
 # 149305 obs to 145185 obs after filtering !=0
 
 ```
+
+
+> Does filter for in_ff = 0 cause any problems for healthcare costs? Why did original coders crate eehc_2 and move it to revenues in the first place?
+
 
 ## Debt Service  
 
@@ -731,6 +812,35 @@ rev_temp %>%
 
 ### Optional Medicaid Payments
 
+Optional insurance payments should be included in net cost of providing employee healthcare. 
+
+
+__Money In - Money Out = State Employee Healthcare Cost__
+
+
+[Premiums paid by employees + premiums paid by employers] - Cost of Healthcare Provision = State Employee Healthcare
+
+[Optional insurance premiums by employees + employer group insurance contributions] - Cost of Healthcare of Provision = State Employee Healthcare Cost
+
+
+Cost of healthcare provision - [employee premiums] = Net cost of State Employee Healthcare
+
+---
+
+0120 = ins prem-option life
+0120 = ins prem-opttional life/univ
+
+0345 = 
+0347 = optional health - HMO
+0348 = optional health - dental 
+0349 = optional health - univ/local SI
+0350 = optional health - univ/local
+0351 = optional health - retirement
+0352 = optional health - retirement SI
+0353 = optional health - retire/dental
+0354 = optional health - retirement hmo
+
+2199-2209 = various HMOs, dental, health plans from Health Insurance Reserve (fund)
 
 ```{r step-3.6-option-premiums}
 
@@ -846,7 +956,7 @@ ff_rev<- left_join(ff_rev, tax_refund)
 
 ff_rev <- left_join(ff_rev, pension2_fy22, by=c("fy" = "year"))
 
-ff_rev <- left_join(ff_rev, eehc2_amt) 
+ ff_rev <- left_join(ff_rev, eehc2_amt) 
 ff_rev <- mutate_all(ff_rev, ~replace_na(.,0))
 
 
@@ -861,7 +971,8 @@ ff_rev <- ff_rev %>%
 
          rev_78new = rev_78 + pension_amt + eehc
          ) %>% 
-  select(-c(ref_02:ref_35, rev_76, rev_78, rev_99, rev_NA, pension_amt, eehc))
+  select(-c(ref_02:ref_35, rev_76, rev_78, rev_99, rev_NA, pension_amt  , eehc
+            ))
 
 ff_rev
 
