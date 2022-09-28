@@ -280,14 +280,14 @@ State payments to the following pension systems:
 • Judges Retirement System (JRS)  
 • General Assembly Retirement System (GARS)  
 
-"Operating costs of administering the pensions are not included in this category. Fiscal Futures only includes the state’s payments into the pension funds as "pension expenditures." Note also that these payments are subtracted from reported agency spending in calculating other categories.  "
+"Operating costs of administering the pensions are not included in this category. Fiscal Futures only includes the state’s payments into the pension funds as "pension expenditures." Note also that these payments are subtracted from reported agency spending in calculating other categories."
 
 - Then why are we including objects 1160-1165
 
 > obj_seq_type== "11600000" should NOT be included in pensions, correct?
 
 - check fund 0183 from 1999 to 2005, org_name = Serve America, fund_name is post traumatic stress awareness
-- added "& fund !=0183" to teacher retirement pensions code below  
+  - added "& fund !=0183" to teacher retirement pensions code below  
 
 > why are local health insurance reserves included as pensions? 
 
@@ -393,16 +393,18 @@ exp_temp <- anti_join(exp_temp, transfers_drop) # 13650 obs dropped with antijoi
 ```
 
 
-### State employee healthcare 
+### State employee healthcare costs
 
 Employer contributions for group insurance (contributions count as a revenue source).
 
 Creates the employee healthcare costs amount to be added to the revenue side __that would have been excluded due to being I. State Trust Funds and therefore in_ff=0 __: Employer contributions are a revenue source and should be subtracted from state employee healthcare costs (expenditures + premiums = net costs).
 
-> Added line of code Sept. 21 2022: eehc = ifelse(obj_seq_type == "19000000", 1, eehc)) %>%
+> Added line of code Sept. 21 2022: eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE", 1, eehc)) %>%
 
 - Should move group insurance that was categorized from central management to employee health costs.   
 - eehc = additional group insurance items under obj_seq_type == "11201000" in 2019 but smaller dollar amount
+
+- object 1900 is for Lump Sums and Other Purposes
 
 
 
@@ -413,6 +415,7 @@ Creates the employee healthcare costs amount to be added to the revenue side __t
 exp_temp <- exp_temp %>% 
   mutate(eehc = ifelse(object == "1180", 1, 0)) %>%
   mutate(eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 1, eehc)  ) %>%
+  #  mutate(expenditure = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 0, expenditure)  ) %>% # Francis's method 9.22.22
   mutate(eehc = ifelse((eehc == 1 & in_ff =="0"), 2, eehc)) %>% # if eehc == 1 AND in_ff was zero, then recode eehc to 2, otherwise leave eehc as it was.  Mostly helps flag things that would have been excluded due to default in_ff coding 
   mutate(in_ff = ifelse(eehc == 2, "1", in_ff) ) 
 
@@ -426,7 +429,7 @@ eehc_2_long
 
 # summarizes by year totals for state employee healthcare costs == 2
 eehc2_amt <- eehc_2_long %>% group_by(fy) %>%
-  summarize(eehc = sum(expenditure)/1000000)
+  summarize(eehc = sum(expenditure, na.rm = TRUE)/1000000)
 
 # examine all eehc items in csv file to check mistakes
 exp_temp %>%  
@@ -451,9 +454,12 @@ State Employee Health Care = Sum of expenditures for "health care coverage as el
 exp_temp <- exp_temp %>% 
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
       fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management is agency 416
-      fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services
+      fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services, stopped using this in 2012
       fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2002 & fy<2006) ~ "904",
-      fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2020) ~ "904", 
+      
+      fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2020) ~ "904",
+      
+      obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020 ~ "904",
 
       TRUE ~ as.character(agency))) %>%
   mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
@@ -509,15 +515,44 @@ exp_temp <- exp_temp %>% filter(in_ff != 0) # drops in_ff = 0 funds AFTER dealin
 
 ```
 
-## Debt Service
+## Debt Service  
 
-Principal and interest payment on both short-term and long-term debt. We do not include escrow payments. 
+
+~~Principal and~~  interest payment on both short-term and long-term debt. We do not include escrow payments. 
+
+8813____ is for interest **INCLUDE AS COST**  
+8811____ is for principle **EXCLUDE from analysis**  
+8841____ is for escrow payments **EXCLUDE from analysis**  
+
+8800____ is for tollway  
+
+**Note: After feedback from GOMB and discussion with research team, we are no longer including principal payments as an expenditure. We do not count bond proceeds as revenue, and we do not count principal payments as a debt service expenditure. **  
 
 ```{r debt-service}
-exp_temp <- exp_temp %>% 
-  mutate(agency = if_else(object>"7999" & object<"9000" & fund!="0455", "903", as.character(agency)),
-         agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)),
-         group = if_else(agency == "903", "903", as.character(group)))
+
+# exp_temp <- exp_temp %>% 
+#   # 8000 objects
+#   mutate(interest_pmt = if_else(object>"8810" & object<"8814", "903", as.character(agency)),
+#          agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)),
+#          group = if_else(agency == "903", "903", as.character(group)))
+
+princ_pmt <- exp_temp %>% 
+  filter(object == "8811" | object == "8841") # principal and escrow
+
+exp_temp <- anti_join(exp_temp, princ_pmt) %>%
+  # mutate(group = if_else(object == "8813", "903", as.character(group)),
+  #        agency = if_else(object == "8813", "903", as.character(agency_name)),
+  #        agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)))
+
+  mutate(agency = if_else(object== "8813", "903", as.character(agency)),
+        agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)),
+        group = if_else(agency == "903", "903", as.character(group)))
+
+# exp_temp <- exp_temp %>% 
+#   #8813 is  interest payments
+#   mutate(in_ff = if_else(agency == "370" & object == "8813", 1, 0)) %>%
+#   filter(in_ff == 1)  %>%
+#   mutate(group = if_else(object == "8813", "903", as.character(group)))
 
 ```
 
@@ -783,6 +818,10 @@ rev_temp <- rev_temp %>%
 
 
 #table(rev_temp$rev_type_new)  # check work
+
+
+rm(rev_1998_2022)
+rm(exp_1998_2022)
 ```
 
 
