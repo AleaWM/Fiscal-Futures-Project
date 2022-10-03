@@ -1036,7 +1036,7 @@ rev_temp <- rev_temp %>%
     rev_type_name = ifelse(rev_type=="59", "FEDERAL TRANSPORTATION", rev_type_name),
     rev_type_name = ifelse(rev_type=="57", "FEDERAL OTHER", rev_type_name),
     rev_type = ifelse(rev_type=="6", "06", rev_type),
-       rev_type = ifelse(rev_type=="9", "09", rev_type)) 
+    rev_type = ifelse(rev_type=="9", "09", rev_type)) 
 
 
 rev_temp %>% 
@@ -1045,13 +1045,18 @@ rev_temp %>%
 ```
 
 ### Pension Contributions
-
-0477
-275
-0572
 ```{r}
-rev_temp %>% filter( fund == "0477")
-rev_temp %>% filter( fund == "0477" & source == "0572") %>% group_by(fy) %>% summarise(sum = sum(receipts))
+exp_temp %>% filter(agency == "589" & object != "1129")
+```
+
+
+```{r}
+rev_temp %>% filter(rev_type == "51" & fund == "0477")
+rev_temp %>% filter(agency=="275" & fund == "0477" & source == "0572") %>% group_by(fy) %>% summarise(sum = sum(receipts)) # stops at 2011
+
+# current year employee revenue source = 0573
+pension_in <- rev_temp %>% filter(rev_type == "51" & source == "0573") %>% group_by(fy) %>%summarise(sum = sum(receipts)/1000000)
+
 
 ```
 
@@ -1132,15 +1137,15 @@ rev_temp <- rev_temp %>% filter(med_option_recent != 1)
 
 Still need to add med_option data to Other Revenues
 
+Transfers in and Out: 
+in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")
 
 SPORTS FACILITIES TAX TRUST
 REPLACEMENT VEHICLE TAX-ST
-	
 EASTERN ILLINOIS UNIVERSITY
 GOVERNOR'S STATE UNIVERSITY
 NORTHEASTERN ILLINOIS UNIV
 WESTERN ILLINOIS UNIVERSITY
-	
 SOUTHERN ILLINOIS UNIVERSITY
 UNIVERSITY OF ILLINOIS
 PUBLIC BUILDING FUND 1582
@@ -1166,7 +1171,8 @@ rev_temp <- rev_temp %>%
 # if source contains any of the codes in in_from_out, code them as 76 (all other rev).
 
 # revenue types to drop
-drop_type <- c("32", "45", "51", "66", "72", "75", "79", "98")
+drop_type <- c("32", "45",# "51", 
+               "66", "72", "75", "79", "98")
 
 # drops Blank, Student Fees, Retirement contributions, proceeds/investments,
 # bond issue proceeds, interagency receipts, cook IGT, Prior year refunds.
@@ -1184,8 +1190,7 @@ rev_temp %>%
 
 ```
 
-Transfers in and Out: 
-in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")
+
 
 ```{r}
 # combines smallest 4  categories to to "Other"
@@ -1205,13 +1210,18 @@ rm(exp_1998_2022)
 
 # Pivoting and Merging
 
-- State employee contributions (eehc from eehc2_amt) should be moved to Other revenues. State employer contributins should bedropped.   
+- State employee contributions (eehc from eehc2_amt) should be subtracted from state employee healthcare expenditures. State employer contributions should be dropped to avoid double counting costs.   
 
-- State pension contributions funded by bonds (pension_amt from pension2_fy22) should be added to Other revenues.  
+- Subtract employee insurance premiums from 904 (State Employee Healthcare Expenditures - Employee Premiums = Actual state healthcare costs. Subtract med_option_amt_recent in med_option_recent from exp_904 in ff_exp). 
+
+- **WRONG:** State pension contributions funded by bonds (pension_amt from pension2_fy22) should be added to Other revenues.  
+  - **Maybe right??**: Employee contributions should be subtracted from from state pension costs. 
+  - exp_901 - rev_51?
+
 
 - Local Government Transfers (exp_970) should be on the expenditure side
 
-- Subtract employee insurance premiums from 904 (State Employee Healthcare Expenditures - Employee Premiums = Actual state healthcare costs. Subtract med_option_amt_recent in med_option_recent from exp_904 in ff_exp).  
+ 
 
 ## Revenues
 
@@ -1312,13 +1322,17 @@ ff_exp <- exp_temp %>%
   
   # join state employee healthcare and subtract employee premiums
   left_join(med_option_recent, by = c("fy" = "year")) %>%
-  mutate(exp_904_new = exp_904 - med_option_amt_recent) %>% # state employee healthcare 
+  mutate(exp_904_new = exp_904 - med_option_amt_recent) %>% # state employee healthcare premiums
   
+  left_join(pension_in) %>%
+      mutate(exp_901_new = exp_901 - sum) %>% #employee pension contributions
+
+
   # join local transfers and create exp_970
   left_join(transfers, by = c("fy" = "year")) %>%
   mutate(exp_970 = exp_971 + exp_972  + exp_975 + exp_976)
 
-ff_exp<- ff_exp %>% select(-c(exp_904, med_option_amt_recent, exp_971:exp_976)) # drop unwanted columns
+ff_exp<- ff_exp %>% select(-c(exp_904, exp_901, med_option_amt_recent, exp_971:exp_976)) # drop unwanted columns
 ff_exp
 ```
 
