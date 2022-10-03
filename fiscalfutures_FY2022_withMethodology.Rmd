@@ -1,5 +1,5 @@
 ---
-title: "Methodology for Fiscal Futures FY2022 Analysis"
+title: "FY2022 Analysis - Methodology for Fiscal Futures "
 author: "Alea Wilbur"
 date: "September 2022"
 output:
@@ -53,7 +53,7 @@ Expenditure File:
 
 > Look for cross year differences in the availability of transfer-in and transfer-out information
 
-# Codebook
+# Variables
 
 __Using the comptrollers variables:__ 
 
@@ -74,52 +74,29 @@ Detail Object is a department classification used by the State to group expenses
 
 # Data Creation and Cleaning
 
-- Do the FOIA request
-- 2. In a week or so, they send the expenditure and revenue data as excel files. 
-- 3. Checks whether there are any new agencies, re-used funds etc. Create a list of funds, agencies, fund names, etc. for the new year and compare it to the immeditate prior year to identify new funds.
-
-- 4. Update the funds_ab_in file which shows the use of funds. Use criteria to determine if the new funds should be in or out of the all-funds frame. 
-
-- 5. Then, download the excel files that are sent to you. 
-- 6. Open and change the names to be consistent with other files such as AGENCYNAME--> agency_name
-- 7. Then, make the expenditure and receipts "numbers", not "general". 
-- 8. Save them and import to Stata. 
+1. Do the FOIA request
+2. In a week or so, they send the expenditure and revenue data as excel files. 
+3. Checks whether there are any new agencies, re-used funds etc. Create a list of funds, agencies, fund names, etc. for the new year and compare it to the immediate prior year to identify new funds.
+4. Update the funds_ab_in file which shows the use of funds. Use criteria to determine if the new funds should be in or out of the all-funds frame. 
+5. Then, download the excel files that are sent to you. 
+6. Open and change the names to be consistent with other files such as AGENCYNAME--> agency_name
 
 Combine past years: All revenue files are in a `revenue` folder that I reference when I set the working directory. When adding new fiscal years, put the the newest year of data for revenue and expenditures in their respective folders. 
 
 __Pre-FY2022__
-
-The code below chunk takes the .dta files for all fiscal years before FY 2022 and binds them together.  Variable names were manually changed by past researchers so that they were consistent across years. 
-
-- Additional variables are created: object, category, sequence, type, trans_agency, trans_type
-
-- trans_agency and trans_type are only for transfers. You can search for "transfers" under the variable "org_name"
  
- Agency == 799 for Statutory transfers
- Object == 1993 is for Interfund cash transfers  
-
-•	NOTE: trans_agency AND trans_type: ONLY FOR TRANSFERS. 
-o	Search for TRANSFERS under the variable “org_name”. 
-o	For these TRANSFERS, variables object, category, sequence, type, are stored as “.”. 
-o	For those other than TRANSFERS, variables trans_agency AND trans_type, are stored as “.”. 
-o	For all rows with trans_agency and trans_type stored as “.” 
-	 Fill in the object variable as the first 4 numbers of obj_seq_type. 
-	Fill In category as the first number of obj_seq_type.
-	Fill in  sequence  as the 5th and 6th digits of obj_seq_type.
-	Fill in type as the last two numbers of obj_seq_type.
-o	For all rows in which the 4 variables are “.” i.e. for TRANSFERS,
-	Fill in trans_agency as first 3 digits of obj_seq_type.
-	Fill in trans_type as rest 6 of the letters in obj_seq_type.  
-
-
  
-```{r eval = FALSE}
+```{r eval = FALSE, include = FALSE}
+# Agency == 799 for Statutory transfers 
+#  Object == 1993 is for Interfund cash transfers  
 exp_temp <- exp_temp %>% 
   mutate(transfer = ifelse(org_name == "TRANSFERS", 1, 0),
          trans_agency = ifelse(),
          trans_type = ifelse())
 ```
 
+
+The code chunk below takes the .dta files for all fiscal years before FY 2022 and binds them together.  Variable names were manually changed by past researchers so that they were consistent across years. 
 
 ```{r create-rev-csv, eval = FALSE}
 setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/revenue")
@@ -227,6 +204,7 @@ rev_1998_2022 <- allrevfiles %>%
   mutate(fund =  ifelse(fy < 2017 & fund == "0364", str_replace(fund, "0","9"), fund)) %>%
   
   mutate(fund =  ifelse(fy < 2018 & fund %in% c("0818", "0767", "0671", "0593", "0578"), str_replace(fund, "0","9"), fund)) %>%
+  
   mutate(fund = ifelse(fy>1999 & fy < 2018 & fund == "0231", "10231", fund) ) %>%
   
   mutate(fund = ifelse(fy < 2019 & fund %in% c("0161", "0489", "0500", "0612", "0893", "0766"), str_replace(fund, "0","9"), fund)) %>%
@@ -241,6 +219,7 @@ rev_1998_2022 <- allrevfiles %>%
 )
 ```
 
+Expenditure recoding: 
 
 ```{r recode-exp-funds}
 # if first character is a 0, replace with a 9
@@ -272,7 +251,7 @@ exp_1998_2022 <- allexpfiles %>%
 ```
 
 
-> Note: `exp:1998_2022` and the `funds_ab_in_2021` dataframes have a fund_cat_name variable (AND THEY DONT MATCH 100%) which ends up creating a .x and .y version of the variable when they are joined together. Inspect this more later. It is not a huge concern because the fund number is what matters more.
+> Note: `exp:1998_2022` and the `funds_ab_in_2022` dataframes have a fund_cat_name variable (AND THEY DONT MATCH 100%) which ends up creating a .x and .y version of the variable when they are joined together. Inspect this more later. It is not a huge concern because the fund number is what matters more.
 
 ```{r create-exp_temp}
 funds_ab_in_2022 = readxl::read_excel("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/funds_ab_in_2022.xlsx")
@@ -282,7 +261,7 @@ exp_temp <- exp_1998_2022 %>%
   arrange(fund, fy) %>%
   filter(expenditure != 0) %>% # keeps everything that is not zero
 # join  funds_ab_in_2021  to exp_temp
- left_join(funds_ab_in_2022, by = "fund")  # matches most recent fund number and name
+ left_join(funds_ab_in_2022, by = "fund")  # matches most recent fund number 
 
 ```
 
@@ -295,17 +274,23 @@ rm(allexpfiles)
 rm(allrevfiles)
 ```
 
+Update Agencies: Early agencies replaced by successors
+```{r agencies-exp}
+# recodes old agency numbers to consistent agency number
+exp_temp <- exp_temp %>% 
+  mutate(agency = case_when(
+    (agency=="438"| agency=="475" |agency == "505") ~ "440",
+    # financial institution &  professional regulation &
+     # banks and real estate  --> coded as  financial and professional reg
+    agency == "473" ~ "588", # nuclear safety moved into IEMA
+    (agency =="531" | agency =="577") ~ "532", # coded as EPA
+    (agency =="556" | agency == "538") ~ "406", # coded as agriculture
+    agency == "560" ~ "592", # IL finance authority (fire trucks and agriculture stuff)to state fire marshal
+    agency == "570" & fund == "0011" ~ "494",   # city of Chicago road fund to transportation
+    TRUE ~ (as.character(agency)))) 
+```
+
 # Modify Expenditure File
-
-
-1. Medicaid is made up of General Revenue Fund and special funds added together. Not that there is a state and federal portion to the total Fiscal Futures Medicaid expenditures. Our estimate of General Revenue Fund expenditures is added to the warrants  issued from the special-purpose Medicaid funds to arrive at the total Fiscal Futures estimate for Medicaid expenditures. The rationale for this method is described below.
-
-2. Elementary and Secondary Education. Total expenditures of the State Board of Education (less
-retirement contributions)
-
-3. Human Services - (Medicaid expenditures & State Employee Health Care)
-
-9. State Employee Health Care. Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions.
 
 ### Tax refunds 
 
@@ -328,7 +313,7 @@ tax_refund_long <- exp_temp %>%
     obj_seq_type == "99250055" ~ "06", # sales tax refund
     fund=="0378" & object=="9925" ~ "24", # insurance privilege tax refund
     fund=="0001" & object=="9925" ~ "35", #all other taxes
-      T ~ "CHECK")) # if none of the items above apply to the observations, then code them as 00 
+      T ~ "CHECK")) # if none of the items above apply to the observations, then code them as CHECK 
 
     
 exp_temp <- left_join(exp_temp, tax_refund_long) %>%
@@ -341,136 +326,181 @@ tax_refund <- tax_refund_long %>%
   mutate_all(~replace_na(.,0)) %>%
   arrange(fy)
 
-exp_temp <- exp_temp %>% filter(refund == "not refund")
 
 # remove the items we recoded in tax_refund_long
-#exp_temp <- anti_join(exp_temp, tax_refund_long) # should be 156 fewer observations after antijoin
+exp_temp <- exp_temp %>% filter(refund == "not refund")
+
+#should be 156 fewer observations
 
 ```
 
 `tax_refund` will ultimately be removed from expenditure totals and instead subtracted from revenue totals (since they were tax refunds).
 
 
-```{r agencies}
-# early agencies replaced by successors
-# recodes old agency numbers to consistent agency number
-exp_temp <- exp_temp %>% 
-  mutate(agency = case_when(
-    (agency=="438"| agency=="475" |agency == "505") ~ "440",
-    # financial institution &  professional regulation &
-     # banks and real estate  --> coded as  financial and professional reg
-    agency == "473" ~ "588", # nuclear safety moved into IEMA
-    (agency =="531" | agency =="577") ~ "532", # coded as EPA
-    (agency =="556" | agency == "538") ~ "406", # coded as agriculture
-    agency == "560" ~ "592", # IL finance authority (fire trucks and agriculture stuff)to state fire marshal
-    agency == "570" & fund == "0011" ~ "494",   # city of Chicago road fund to transportation
-    TRUE ~ (as.character(agency)))) 
-```
-
-
-
 ### Pensions
+
 
 State payments to the following pension systems:  
 
 • Teachers Retirement System (TRS)  
+  - New POB bond in 2019: Accelerated Bond Fund paid benefits in advance as lump sum
 • State Employee Retirement System (SERS)  
 • State University Retirement System (SURS)  
 • Judges Retirement System (JRS)  
 • General Assembly Retirement System (GARS)  
 
+Old code comments: "You also must consider pension obligated bonds (POB) - funded contributions."  
+  - Pension obligation bonds (POBs) are taxable bonds that some state and local governments have issued as part of an overall strategy to fund the unfunded portion of their pension liabilities by creating debt.
+
 "Operating costs of administering the pensions are not included in this category. Fiscal Futures only includes the state’s payments into the pension funds as "pension expenditures." Note also that these payments are subtracted from reported agency spending in calculating other categories."
 
-- Then why are we including objects 1160-1165
+> Change POB fund == 0325 to 0 in fund_ab_YEAR file to exclude it.
 
-> obj_seq_type== "11600000" should NOT be included in pensions, correct?
+__Check what is included in pensions:__
 
-- check fund 0183 from 1999 to 2005, org_name = Serve America, fund_name is post traumatic stress awareness
-  - added "& fund !=0183" to teacher retirement pensions code below  
+- object = 4431 catches most pension items
+- object = 1298 is purchase of investments and is excluded from analysis  
 
-> why are local health insurance reserves included as pensions? 
+```{r pension-check, eval = FALSE}
+# check what is being included in pensions
 
-- object == 1161 & type == "00"
-- county option motor fuel tax -- why is this under pensions? What should it be under? 
-
-> & fund != "0183" & appr_org != "55"
-
-
-- object = 4431 catches most pension
-
-```{r pensions}
-
-#special accounting of pension obligation bond (POB)-funded contributions to JRS, SERS, GARS, TRS 
-
-exp_temp <-  exp_temp %>% 
-  arrange(fund) %>%
+pension_check <- exp_temp %>% 
   mutate(pension = case_when( 
-  # objects were weird for 2010 and 2011
-  (object=="4431" & fund=="0473" & (fy==2010 | fy==2011)) ~ 3, # teachers retirement system, 
-  (object=="1298" & (fy==2010 | fy==2011) & (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement
- 
-  (object=="4431" | (object>"1159" & object<"1166")  ) ~ 1, # 4431 = easy to find pension items
-   # objects 1159 to 1166 are all considered Retirement by Comptroller 
-  # object == 1167 also appears to be Other Retirement but isn't used yet
- 
- fund == "0825" ~ 4, # pension obligation acceleration bond
-                                        TRUE ~ 0))
+     #   (object=="4431" | (object>"1159" & object<"1166") ) ~ 1, # 4431 = easy to find pension items
+       (object=="4431" | (obj_seq_type > "11590000" & obj_seq_type < "11660000") ) ~ 1, 
+
+    # objects 1159 to 1166 are all considered Retirement by Comptroller 
+    # object == 1167 also appears to be Other Retirement but isn't used yet
+            TRUE ~ 0)) %>% 
+  
+  mutate(pension = case_when(     # objects were weird for 2010 and 2011
+   (object=="4431" & fund=="0473" & (fy==2010 | fy==2011)) ~ 3, # teachers retirement system,  
+  #  obj_seq_type == "44310055" ~ 3, # teachers retirement system in 2010 and 2011. 
+   (object=="1298" & (fy==2010 | fy==2011) & (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, # judges retirement 
+   # obj_seq_type == "12980055" ~ 3, # judge retirement contriubtions during 2010 and 2011
+    TRUE ~ pension)) %>% 
+  filter(pension > 0 )
 
 
-table(exp_temp$pension)
+pension_check   # 8,971 observations
+
+
+## taking care of Pension Obligation Bond proceeds
+
+pension_check <- pension_check %>% 
+  # change object for 2010 and 2011, retirement expenditures were bond proceeds
+  mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", as.character(object))) %>% # changes weird teacher & judge retirement system  pensions object to normal pension object 4431
+  mutate(pension =  ifelse(pension == 1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded due to being bond proceeds ?
+  mutate(in_ff = ifelse((pension ==2 | pension ==3), "1", as.character(in_ff)))
 
 
 # create file with all pension items to find any mistakes
-exp_temp %>% 
-  filter(pension > 0) %>%
-  write_csv("all_pensions.csv")
+#pension_check %>% write_csv("all_pensions.csv")
 
-exp_temp %>% 
-  filter(pension > 0)
+table(pension_check$pension)
 
+pension_check %>% filter(pension == 2 ) # subtract these from expenditures OR add them as an "Other Revenue" source at end of code?
 
-exp_temp <- exp_temp %>% 
- # mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", object)) %>% # why this step?
-  mutate(pension =  ifelse(pension ==1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded. Allows or checking work in between steps.
-  mutate(in_ff = ifelse((pension ==2 | pension ==3 | pension == 4), "1", in_ff))
-
-table(exp_temp$pension) 
-
-
+pension_check %>% filter(pension == 2 ) %>% group_by(fy) %>% summarise(pob_sum = sum(expenditure)/1000000)
 
 ```
 
-Pension = 2 represents retirement pension payments that were excluded from the fiscal futures analysis by default ( in_ff was 0 because *they were categorized as fund category I. State Trust Funds*) but should be included and added to the revenue side under "Other Revenues" in later steps.
 
-Summarizes the total expenditures for each pension code for each year. 
 
-```{r pensions2}
+Actually modifying exp_temp and moving all pension contributions to their own group (901):
+```{r pensions}
+exp_temp <-  exp_temp %>% 
+  arrange(fund) %>%
+  mutate(pension = case_when( 
+    
+  # objects were weird for 2010 and 2011 for teacher and judge retirement system
+  (object=="4431" & fund=="0473" &  (fy==2010 | fy==2011)) ~ 3, # teachers retirement system, 
+  (object=="1298" & (fy==2010 | fy==2011) & (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement
+ 
+  (object=="4431" | (object>"1159" & object<"1166") & fund != "0183" & fund != "0193"  ) ~ 1, # 4431 = easy to find pension items
+   # objects 1159 to 1166 are all considered Retirement by Comptroller 
+  # object == 1167 also appears to be Other Retirement but isn't used yet
+ 
+ # fund == "0825" ~ 0 , # pension obligation acceleration bond
+                                        TRUE ~ 0)) 
 
+table(exp_temp$pension) # same number of total observations > 0 as pension_check
+```
+
+Purchase of investments is dropped from the analysis, but should it be?
+Examine what is considered "Purchase of Investments" object == "1298"
+```{r}
+exp_temp %>% filter(object == "1298")
+exp_temp %>% filter(object == "1298") %>% group_by(fy) %>%summarise(sum = sum(expenditure))
+```
+
+
+> employee vs employer contributions??
+
+11290008 employee expenditure
+
+~~POB-funded contributions to JRS, SERS, GARS, and TRS must be accounted for in a different way:~~
+
+Old and disputed: Pension = 2 represents retirement pension payments paid for with POB-funded contributions that were excluded from the fiscal futures analysis by default ( in_ff was 0 because *....?*) but should be included and added to the revenue side under "Other Revenues" in later steps.
+
+
+"The proceeds of State Pension Obligation Acceleration Bonds authorized in subsection (b) of this Section, less the amounts authorized in the Bond Sale Order to be directly paid out for bond sale expenses under Section 8, shall be deposited directly into the State Pension Obligation Acceleration Bond Fund, and the Comptroller and the Treasurer shall, as soon as practical, make accelerated pension benefit payments under Articles 14, 15, and 16 of the Illinois Pension Code.
+    (d) There is created the State Pension Obligation Acceleration Bond Fund as a special fund in the State Treasury. Funds deposited in the State Pension Obligation Acceleration Bond Fund may only be used for the purpose of making accelerated pension benefit payments under Articles 14, 15, and 16 of the Illinois Pension Code or for the payment of principal and interest due on State Pension Obligation Acceleration Bonds. This subsection shall constitute an irrevocable and continuing appropriation of all amounts necessary for such purposes.
+(Source: P.A. 102-718, eff. 5-5-22.)" 
+
+[Link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
+
+```{r pensions-POB}
+
+# special accounting of pension obligation bond (POB)-funded contributions to JRS, SERS, GARS, TRS 
+
+exp_temp <- exp_temp %>% 
+  # change object for 2010 and 2011, retirement expenditures were bond proceeds
+  mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", object)) %>% 
+  # changes weird teacher & judge retirement system  pensions object to normal pension object 4431
+  mutate(pension =  ifelse(pension ==1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded. 
+  mutate(in_ff = ifelse((pension ==2 | pension ==3 ), "1", in_ff))
+
+table(exp_temp$pension) 
+
+#exp_temp %>% filter(pension == 2)
+
+```
+
+
+- *To do: DONE* add "& fund !=0183" to teacher retirement pensions code below  - FY22 AWM     
+  - fund = 0183 from 1999 to 2005, org_name = Serve America, fund_name is post traumatic stress awareness
+  - > fund != "0183" | 193  & appr_org != "55"
+
+
+
+Pension2 used to be added to revenue side as All Other Revenue sources but as of Oct 2022, we can not determine why that was done. 
+```{r pensions1, include=FALSE}
 #creates long version without any aggregation 
 pension_2_long <- exp_temp %>%
   filter(pension == 2 ) %>%
   rename(year = fy) 
 
-
-exp_temp <- anti_join(exp_temp, pension_2_long)  # 148 observations removed with antijoin
-
+pension_2_long
 
 pension2_fy22<- pension_2_long %>% 
   group_by(year) %>% 
   summarize(pension_amt = sum(expenditure)/1000000)
 
-# all other pensions (1,3,4) codes get agency code 901 for State Pension Contributions
+#pension2_fy22 # used in final tables
+#exp_temp <- anti_join(exp_temp, pension_2_long)  # 148 observations removed with antijoin
+```
+
+
+```{r pensions2}
+# all other pensions objects (1 and 3) codes get agency code 901 for State Pension Contributions
 exp_temp <- exp_temp %>% 
   mutate(agency = ifelse(pension>0, "901", as.character(agency)),
          agency_name = ifelse(agency == "901", "State Pension Contributions", as.character(agency_name)))
 
-pension2_fy22 # used in final tables
-
-pension_2_long %>% filter(fund == "0138" | fund == "0183" | fund == "0190" | fund == "0193") # should these be included?
 
 ```
 
-> Should the items above be considered pension expenditures? Currently they are coded as pension == 2 and added to revenues in later steps.
 
 
 ### Drop Interfund transfers
@@ -486,7 +516,7 @@ transfers_drop <- exp_temp %>% filter(
            object == "1993" |  # interfund cash transfers
            object == "1298") # purchase of investments
 
-exp_temp <- anti_join(exp_temp, transfers_drop) # 13650 obs dropped with antijoin
+exp_temp <- anti_join(exp_temp, transfers_drop)
 
 
 ```
@@ -503,26 +533,16 @@ Fund = 9939 is "group self-insurers' insolv", in_ff = 1
 Fund = 0940 is Self-Insurers security, in_ff = 0
 Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1
 
-Observations that remain in the `eehc2_amt` are interagency receipts. 
+Employer contributions for group insurance are excluded to avoid double counting the cost of healthcare.
 
-Employer contributions for group insurance (contributions count as a revenue source).
+All employer contributions are coded as object = 1180. 
 
-Creates the employee healthcare "costs" amount to be added to the revenue side __that would have been excluded due to being I. State Trust Funds and therefore in_ff=0__ : Employer contributions are a revenue source and should be subtracted from state employee healthcare costs (premiums - healthcare payouts = net costs for state).
-
-> Added line of code Sept. 21 2022: eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE", 1, eehc)) %>%
-
-- Should move group insurance that was categorized from central management to employee health costs.   
-- eehc = additional group insurance items under obj_seq_type == "11201000" in 2019 but smaller dollar amount
-
-- object 1900 is for Lump Sums and Other Purposes
-
-
+- eehc = 0 means it is NOT a state healthcare cost but it is an employer contribution of some type to some fund   
+- eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance
 
 ```{r eehc1}
 
-# eehc = 0 means it is NOT a state healthcare cost
-# eehc = 1 means it is a state employee healthcare cost
-
+# examine group insurance items
 group_ins <- exp_temp %>% 
   mutate(eehc = ifelse(
     # group insurance contributions for 1998-2005 and 2013-present
@@ -534,7 +554,7 @@ group_ins <- exp_temp %>%
     group_by(fy) %>% 
     summarize(dropped_group_premiums = sum(expenditure))
 
-
+# examine healthcare cost items
 healthcare_costs <- exp_temp %>% 
   mutate(eehc = ifelse(
     # group insurance contributions for 1998-2005 and 2013-present
@@ -587,8 +607,10 @@ exp_temp <- exp_temp %>%
 
 ```
 
+this code for dealing with group insurance means that eehc no longer needs to be created or added into revenue at a later stage.
 
-```{r eehc, eval = FALSE}
+
+```{r eehc, eval = FALSE, include = FALSE}
 # identifies eehc values that would have been excluded due to in_ff == 0 before recoding
 
 exp_temp <- exp_temp %>% 
@@ -638,7 +660,7 @@ exp_temp <- anti_join(exp_temp, eehc_2_long, by = c("fy", "fund", "fund_name", "
 State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employee contributions are not considered a revenue source or an expenditure in our analysis.
 
 
-```{r state-employee-healthcare, eval = FALSE}
+```{r state-employee-healthcare, eval = FALSE, include = FALSE}
 
 exp_temp <- exp_temp %>% 
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
@@ -672,9 +694,10 @@ The five corresponding revenue items are:
 • Local share of General Sales Tax   
 • Personal Property Replacement Tax on Business Income  
 • Personal Property Replacement Tax on Public Utilities  
-• Local share of Motor Fuel Tax  
+• Local share of Motor Fuel Tax 
+  - Transportation Renewal Fund 0952
 
-> Add the mft mentioned in GOMB email
+> Complete: Add the mft mentioned in GOMB email to code
 
 ```{r transfers-to-local}
 exp_temp <- exp_temp %>% mutate(
@@ -689,7 +712,9 @@ exp_temp <- exp_temp %>% mutate(
                      fund=="0187" & object=="4470" ~ "976",
                      fund=="0186" & object=="4470" ~ "976",
                     object=="4491" & (fund=="0413"|fund=="0414"|fund=="0415")  ~ "975", #mft to local
+                  fund == "0952"~ "975", # Added Sept 29 2022 AWM. Transportation Renewal MFT
                     TRUE ~ as.character(agency)),
+  
   agency_name = case_when(agency == "971"~ "INCOME TAX 1/10 TO LOCAL",
                           agency == "972" ~ "PPRT TRANSFER TO LOCAL",
                           agency == "976" ~ "GST TO LOCAL",
@@ -708,55 +733,105 @@ exp_temp <- exp_temp %>% filter(in_ff != 0) # drops in_ff = 0 funds AFTER dealin
 
 ## Debt Service
 
-Debt Service expenditures include principal and interest payment on both short-term and long-term debt. We do not include escrow payments. 
-
-> but we did include an escrow payment. We also were including principle payments as costs but not revenues which is incorrect. No longer including princple payments as a cost, only interest on borrowing is a cost
-
-- wh_approp_name == "ESCROW PYMNT RFNDNG BOND ISSUE"  
-- obj_seq_type == "88410008"  
-
-Escrow payment == 88410008
-Bond principle payments: obj_seq_type == 88110008
-Short term borrowing principle: obj_seq_type == 88110108
-Interest: obj_seq_type == 88130000 & 88130008
-Interest for short-term borrowing: 88130108
-Tollway Principal AND Interest: obj_seq_type == 88000055   
-  - Note: Tollway Principle Payments and Interests are included as one item.
-
-8813____ is for interest **INCLUDE AS COST**
-8811____ is for principle **EXCLUDE from analysis**
-8841____ is for escrow payments **EXCLUDE from analysis**
-
-8800____ is for tollway
-
-```{r debt-service}
+```{r old-way, include = FALSE, eval=FALSE}
+# old way, wrong:
 # exp_temp <- exp_temp %>% 
 #   # objects in the 8000s refer to debt service
 #   # fund 0455 is for the IL Tollway
 #   mutate(agency = if_else(object>"7999" & object<"9000" & fund!="0455", "903", as.character(agency)),
 #          agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)),
 #          group = if_else(agency == "903", "903", as.character(group)))
+```
 
 
-princ_pmt <- exp_temp %>% 
-  filter(object == "8811" | object == "8841") # principal and escrow
+Debt Service expenditures include principal and interest payment on both short-term and long-term debt. We do not include escrow payments. 
 
-exp_temp <- anti_join(exp_temp, princ_pmt) %>%
-  # mutate(group = if_else(object == "8813", "903", as.character(group)),
-  #        agency = if_else(object == "8813", "903", as.character(agency_name)),
-  #        agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)))
+**Decision from Sept 30 2022:**
 
-  mutate(agency = if_else(object== "8813", "903", as.character(agency)),
-        agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)),
-        group = if_else(agency == "903", "903", as.character(group)))
+We are no longer including short term princple payments as a cost; only interest on short term borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond revenues as revenues. This caused expenditures to be inflated because we were essentially counting debt twice- the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
+
+- Include principle and interest for long-term debt that likely funds capital projects. Debt service is a proxy for capital depreciation and should be included as a cost. Tollway debt is longterm debt and is also included. 
+
+8813 interest **INCLUDE AS COST**
+8811 is for principle **EXCLUDE from analysis**
+8841 is for escrow payments **EXCLUDE from analysis**
+8800 is for tollway **Include debt principle and interest as cost, bond proceeds are not revenue**
+
+- Include: Bond principle payments: obj_seq_type == 88110008  
+- Exclude: Short term borrowing principle: obj_seq_type == 88110108  
+  - except for 2021 and 2022 which have GO Bond principle under this code????
+  - based on the numbers, I think it is still short term principle with wrong appropriation name?
+- Include: General Obligation Bond Interest: obj_seq_type == 88130000 & 88130008  
+- Include: Interest for short-term borrowing: 88130108
+- Exclude: Escrow payment == 88410008
+- Include: tollway Principal AND Interest: obj_seq_type == 88000055   
+  - fund == 0455 is the IL State Toll Highway fund, items mostly for operations and maintenance   
+
+  
+>  Include Toll way debt as tollway cost? If it's principle, then yes because of the capital depreciation logic?  easy to do later but think and maybe ask about it
+
+```{r tollway, include = FALSE, eval=FALSE}
+exp_temp %>% filter(fund == "0455")
+
+rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source)
+
+# look at Illinois tollway bond proceeds and debt service: 
+# rev_temp %>% filter(fund == "0455") # examine items in fund 0455
+exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(expenditure))
+rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts))
+```
+
+
+```{r debt-service}
+debt_drop <- exp_temp %>% 
+  filter(object == "8841" |  obj_seq_type == "88110108")  
+# escrow  OR  short term principle before 2021 - GO bond principle under this code in 2021 and 2022 ?
+
+debt_drop %>% group_by(fy) %>% summarize(sum = sum(expenditure))
+
+
+debt_keep <- exp_temp %>% 
+  filter(fund != "0455" & (object == "8813" | object == "8800"| obj_seq_type == "88110008" 
+  )) %>% 
+  mutate(debt = 1)
+# examine the debt costs we want to include
+
+debt_keep %>% group_by(fy) %>% summarize(sum = sum(expenditure))
+
+
+exp_temp <- anti_join(exp_temp, debt_drop) %>%
+  mutate(group = ifelse(fund != "0455" & (object == "8813" | object == "8800"| obj_seq_type == "88110008" ), "903", as.character(group))
+#    agency = if_else(object== "8813", "903", as.character(agency)),
+   #     agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)),
+    #    group = if_else(agency == "903", "903", as.character(group)
+)
+
+# check work
+exp_temp %>%filter(group == "903") %>% group_by(fy) %>% summarize(sum = sum(expenditure))
+
 ```
 
 ## Add Fiscal Future group codes
 
+__Medicaid.__ That portion of the Healthcare and Family Services (or Public Aid in earlier years, agency code 478) budget for Medical (appr_organization code 65) for awards and grants (object codes 4400 and 4900).  
 
+> State CURE will remain in the Medicaid expenditure category due to the nature of it being federal funds providing public health services and funding to locations that provide public services.
+
+- Uses same appropriation name of "HEALTHCARE PROVIDER RELIEF" and fund == 0793 and obj_seq_type == 49000000. So can defend the "mistake" of including healthcare provider relief as Medicaid expenditure. 
+
+
+```{r Medicaid-check, include = FALSE}
+medicaid_check <- exp_temp %>% filter(agency=="478" & (appr_org=="01" | appr_org == "65" | appr_org=="88") & (object=="4900" | object=="4400"))
+# This includes the State CURE fund
+
+# if we want state CURE as public health or other group number
+# exp_temp <- exp_temp %>% mutate(group = if_else(fund == "0324" & agency=="478" & appr_org == "65" & object=="4900", "478", as.character(group)))
+```
+
+Found Fund == 0341 for PROVIDER INQUIRY TRUST. This was included in Medicaid? 
 
 ```{r group-codes}
-exp_temp<- exp_temp %>%
+exp_temp <- exp_temp %>%
   #mutate(agency = as.numeric(agency) ) %>%
   # arrange(agency)%>%
   mutate(
@@ -769,18 +844,17 @@ exp_temp<- exp_temp %>%
       
       agency == "586" ~ "959", # create new K-12 group
 
-      agency=="402" | agency=="418" | agency=="478" | agency=="444" | agency=="482" ~ as.character(agency), # aging, CFS,HFS, human services, public health
-      T ~ as.character(group)),
-    
-      #chip = ifelse(fund == "0001" & agency == "478" & appr_org == "65" &object=="4900" & (sequence == "20" | sequence == "54" | sequence == "61" | sequence == "62" | sequence == "65"),1 ,0) 
+      agency=="402" | agency=="418" | agency=="478" | agency=="444" | agency=="482" ~ as.character(agency), # aging, CFS, HFS, human services, public health
+      T ~ as.character(group))
     ) %>%      
 
   
   mutate(group = case_when(
     agency=="478" & (appr_org=="01" | appr_org == "65" | appr_org=="88") & (object=="4900" | object=="4400") ~ "945", # separates CHIP from health and human services and saves it as Medicaid
     
-    agency == "586" & fund == "0355" ~ "478",  # 586 (Board of Edu) has special education which is part of medicaid
-    #agency == "586" & appr_org == "18" ~ "945", # Spec. Edu Medicaid Matching
+    agency == "586" & fund == "0355" ~ "945",  # 586 (Board of Edu) has special education which is part of medicaid
+    
+    # OLD CODE: agency == "586" & appr_org == "18" ~ "945", # Spec. Edu Medicaid Matching
     
     agency=="425" | agency=="466" | agency=="546" | agency=="569" | agency=="578" | agency=="583" | agency=="591" | agency=="592" | agency=="493" | agency=="588" ~ "941", # public safety & Corrections
     
@@ -793,8 +867,8 @@ exp_temp<- exp_temp %>%
     agency=="440" | agency=="446" | agency=="524" | agency=="563"  ~ "944", # business regulation
     
     agency=="492" ~ "492", # revenue
-    agency == "416" ~ "416", # central management services
     
+    agency == "416" ~ "416", # central management services
     agency=="448" & fy > 2016 ~ "416", #add DoIT to central management 
     
     T ~ as.character(group))) %>%
@@ -813,12 +887,19 @@ exp_temp<- exp_temp %>%
     agency=="503" | agency=="509" | agency=="510" | agency=="565" |agency=="517" | agency=="525" | agency=="526" | agency=="529" | agency=="537" | agency=="541" | agency=="542" | agency=="548" |  agency=="555" | agency=="558" | agency=="559" | agency=="562" | agency=="564" | agency=="568" | agency=="579" | agency=="580" | agency=="587" | agency=="590" | agency=="527" | agency=="585" | agency=="567" | agency=="571" | agency=="575" | agency=="540" | agency=="576" | agency=="564" | agency=="534" | agency=="520" | agency=="506" | agency == "533" ~ "949", 
     
     # non-pension expenditures of retirement funds moved to "Other Departments"
+    # should have removed pension expenditures already from exp_temp in Pensions step above
     agency=="131" | agency=="275" | agency=="589" |agency=="593"|agency=="594"|agency=="693" ~ "948",
     
     T ~ as.character(group))) %>%
   
+#  mutate(group = ifelse(fy > 2020 & agency=="478" & appr_org == "65" & object=="4900" & fund == "0324", "478", as.character(group)) )%>% # state cure to Healthcare and Fam Serv
+  # decided to keep it as Medicaid spending category and add footnotes to article
+  
   mutate(group_name = 
            case_when(
+             group == "416" ~ "Central Management",
+             group == "478" ~ "Healthcare and Family Services",
+             group == "482" ~ "Public Health",
              group == "900" ~ "NOT IN FRAME",
              group == "901" ~ "STATE PENSION CONTRIBUTION",
              group == "903" ~ "DEBT SERVICE",
@@ -845,8 +926,9 @@ table(exp_temp$group)
 
 table(exp_temp$group_name)
 
-```
+exp_temp %>% filter(group_name == "Check name")
 
+```
 
 ```{r combine-local-transfers}
 transfers_long <- exp_temp %>% 
@@ -900,7 +982,7 @@ Revenue Categories not included in Fiscal Futures:
 - 51.  Retirement Contributions (of individuals and non-state entities).    
 - 66.  Proceeds, Investment Maturities.  (Not sustainable flow.)  
 - 72.  Bond Issue Proceeds.  (Not sustainable flow.)   
-- 75.  Inter-Agency Receipts.  (Exceptfrom Funds excluded from Fiscal Futures)  
+- 75.  Inter-Agency Receipts.  (Except from Funds excluded from Fiscal Futures)  
 - 79.  Cook County Intergovernmental Transfers.  (State is not beneficiary.)  
 - 98.  Prior Year Refunds.    
 
@@ -927,7 +1009,25 @@ ioc_source_type <- readxl::read_xlsx("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2
 
 rev_temp <- left_join(rev_temp, ioc_source_type, by = "source")
 # automatically used source, source name does not match for the join to work using source_name
+```
 
+Update Agencies: Early agencies replaced by successors
+```{r agencies-rev}
+# recodes old agency numbers to consistent agency number
+rev_temp <- rev_temp %>% 
+  mutate(agency = case_when(
+    (agency=="438"| agency=="475" |agency == "505") ~ "440",
+    # financial institution &  professional regulation &
+     # banks and real estate  --> coded as  financial and professional reg
+    agency == "473" ~ "588", # nuclear safety moved into IEMA
+    (agency =="531" | agency =="577") ~ "532", # coded as EPA
+    (agency =="556" | agency == "538") ~ "406", # coded as agriculture
+    agency == "560" ~ "592", # IL finance authority (fire trucks and agriculture stuff)to state fire marshal
+    agency == "570" & fund == "0011" ~ "494",   # city of Chicago road fund to transportation
+    TRUE ~ (as.character(agency)))) 
+```
+
+```{r create-rev-temp2}
 rev_temp <- rev_temp %>% 
   mutate(
     rev_type = ifelse(rev_type=="57" & agency=="478" & (source=="0618"|source=="2364"|source=="0660"|source=="1552"| source=="2306"| source=="2076"|source=="0676"|source=="0692"), "58", rev_type),
@@ -944,8 +1044,20 @@ rev_temp %>%
   summarise(receipts = sum(receipts, na.rm = TRUE)/1000000)
 ```
 
+### Pension Contributions
 
-### Optional Medicaid Payments
+0477
+275
+0572
+```{r}
+rev_temp %>% filter( fund == "0477")
+rev_temp %>% filter( fund == "0477" & source == "0572") %>% group_by(fy) %>% summarise(sum = sum(receipts))
+
+```
+
+### Health Insurance Premiums from Employees
+
+Employee insurance premiums for healthcare are a revenue source for the state. In order to get the true cost of State Employee Healthcare, total employee insurance premiums should be subtracted from the healthcare expenditure total (exp_904 - premiums). Gather all employee premiums into `opt_premiums` and subtract it from the Expenditure table after aggregating and pivoting steps.
 
 0120 = ins prem-option life
 0120 = ins prem-opttional life/univ
@@ -961,6 +1073,7 @@ rev_temp %>%
 0354 = optional health - retiremet hmo
 
 2199-2209 = various HMOs, dental, health plans from Health Insurance Reserve (fund)
+
 ```{r step-3.6-option-premiums}
 
 opt_premiums_CHECK <- rev_temp %>% 
@@ -975,7 +1088,8 @@ rev_temp <-  rev_temp %>% mutate(med_option_recent = ifelse(
 rev_temp <- rev_temp %>% 
   mutate(med_option_recent = ifelse(
     fund=="0907" & (source=="0120"| source=="0121"| (source>"0345" & source<"0357")|(source>"2199" & source<"2209")), 1, 0),
-    # adds more rev_types
+    
+    # adds more rev_type codes
     rev_type = case_when(
       fund =="0427" ~ "12", # pub utility tax
       fund == "0742" | fund == "0473" ~ "24", # insurance and fees
@@ -987,9 +1101,13 @@ rev_temp <- rev_temp %>%
 
 ```
 
+Based on Alexis's comments - Look at items considered "Licenses and Fees":
+```{r}
+rev_temp %>% filter(rev_type == "39")
+```
 
 ```{r step-3.7}
-# optional insurance premiums
+# optional insurance premiums = employee insurance premiums
 med_option_recent <- rev_temp %>%
   group_by(fy, med_option_recent) %>%
   summarize(med_option_amt_recent = sum(receipts)/1000000) %>%
@@ -1007,10 +1125,30 @@ med_option_long %>%
   select(-med_option_recent)
 
 rev_temp <- rev_temp %>% filter(med_option_recent != 1)
+# could also do an antijoin with rev_temp and med_option dataframes
+
 
 ```
 
 Still need to add med_option data to Other Revenues
+
+
+SPORTS FACILITIES TAX TRUST
+REPLACEMENT VEHICLE TAX-ST
+	
+EASTERN ILLINOIS UNIVERSITY
+GOVERNOR'S STATE UNIVERSITY
+NORTHEASTERN ILLINOIS UNIV
+WESTERN ILLINOIS UNIVERSITY
+	
+SOUTHERN ILLINOIS UNIVERSITY
+UNIVERSITY OF ILLINOIS
+PUBLIC BUILDING FUND 1582
+DRYCLEANER TRUST FUND
+LOCAL DEBT SERVICE ACCT 1745
+STATE EMPLOY RETIREMENT SYSTEM 1982
+CHILD SUPPORT ENFORCE TRUST
+PROTEST FUND
 
 ```{r step-3.8}
 
@@ -1019,7 +1157,8 @@ rev_temp <- rev_temp %>%
   mutate(local = ifelse(is.na(local), 0, local)) %>%
   filter(local != 1)
 
-
+# CLAIMS, FRATERNAL ORDER OF POLICE
+# 1175 doesnt exist?
 in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")
 
 rev_temp <- rev_temp %>% 
@@ -1066,10 +1205,11 @@ rm(exp_1998_2022)
 
 # Pivoting and Merging
 
-- State employer contributions (eehc from eehc2_amt) should be moved to Other revenues.  
+- State employee contributions (eehc from eehc2_amt) should be moved to Other revenues. State employer contributins should bedropped.   
 
-- State pension contributions (pension_amt from pension2_fy22) should be added to Other revenues.  
-- Local Government Transfers (exp_970) should be on the expenditure side.  
+- State pension contributions funded by bonds (pension_amt from pension2_fy22) should be added to Other revenues.  
+
+- Local Government Transfers (exp_970) should be on the expenditure side
 
 - Subtract employee insurance premiums from 904 (State Employee Healthcare Expenditures - Employee Premiums = Actual state healthcare costs. Subtract med_option_amt_recent in med_option_recent from exp_904 in ff_exp).  
 
@@ -1083,7 +1223,7 @@ ff_rev <- rev_temp %>%
 
 ff_rev<- left_join(ff_rev, tax_refund)
 
-ff_rev <- left_join(ff_rev, pension2_fy22, by=c("fy" = "year"))
+#ff_rev <- left_join(ff_rev, pension2_fy22, by=c("fy" = "year"))
 
 #ff_rev <- left_join(ff_rev, eehc2_amt) 
 ff_rev <- mutate_all(ff_rev, ~replace_na(.,0))
@@ -1098,9 +1238,9 @@ ff_rev <- ff_rev %>%
          rev_24 = rev_24 - ref_24,
          rev_35 = rev_35 - ref_35,
 
-         rev_78new = rev_78 + pension_amt #+ eehc
+         rev_78new = rev_78 #+ pension_amt #+ eehc
          ) %>% 
-  select(-c(ref_02:ref_35, rev_76, rev_78, rev_99, rev_NA, pension_amt
+  select(-c(ref_02:ref_35, rev_76, rev_78, rev_99, rev_NA#, pension_amt
           #  , eehc
             ))
 

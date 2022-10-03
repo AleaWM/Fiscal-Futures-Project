@@ -395,19 +395,17 @@ exp_temp <- anti_join(exp_temp, transfers_drop) # 13650 obs dropped with antijoi
 
 ### State employee healthcare costs
 
-Employer contributions for group insurance (contributions count as a revenue source).
+Employee contributions for group insurance (contributions count as a revenue source).
 
 Creates the employee healthcare costs amount to be added to the revenue side __that would have been excluded due to being I. State Trust Funds and therefore in_ff=0 __: Employer contributions are a revenue source and should be subtracted from state employee healthcare costs (expenditures + premiums = net costs).
 
 > Added line of code Sept. 21 2022: eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE", 1, eehc)) %>%
 
-- Should move group insurance that was categorized from central management to employee health costs.   
-- eehc = additional group insurance items under obj_seq_type == "11201000" in 2019 but smaller dollar amount
 
 - object 1900 is for Lump Sums and Other Purposes
 
 
-eehc_2_long contains all employer contributions that are not for healthcare or health insurance. Employer contributions are considered a revenue source and added to All Other Revenue in the Pivoting Step laer.  
+eehc_2_long contains all employer contributions that are not for healthcare or health insurance. Employer contributions are considered a revenue source and added to All Other Revenue in the Pivoting Step later.  
 
 > Note that a pension contribution ended up in here. Fix that too. 
 > Until 2002, a child support contribution trust fund was included that had large values.
@@ -828,9 +826,8 @@ Cost of healthcare provision - [employee premiums] = Net cost of State Employee 
 ---
 
 0120 = ins prem-option life
-0120 = ins prem-opttional life/univ
+0120 = ins prem-optional life/univ
 
-0345 = 
 0347 = optional health - HMO
 0348 = optional health - dental 
 0349 = optional health - univ/local SI
@@ -840,7 +837,7 @@ Cost of healthcare provision - [employee premiums] = Net cost of State Employee 
 0353 = optional health - retire/dental
 0354 = optional health - retirement hmo
 
-2199-2209 = various HMOs, dental, health plans from Health Insurance Reserve (fund)
+2199-2209 = various HMOs, dental, health plans from employees to Health Insurance Reserve (fund). These are a revenue source. 
 
 ```{r step-3.6-option-premiums}
 
@@ -848,6 +845,7 @@ Cost of healthcare provision - [employee premiums] = Net cost of State Employee 
 rev_temp <- rev_temp %>% 
   mutate(med_option_recent = ifelse(
     fund=="0907" & (source=="0120"| source=="0121"| (source>"0345" & source<"0357")|(source>"2199" & source<"2209")), 1, 0),
+    
     # adds more rev_types
     rev_type = case_when(
       fund =="0427" ~ "12", # pub utility tax
@@ -937,7 +935,7 @@ rm(exp_1998_2022)
 
 # Pivoting and Merging
 
-- State employer contributions (eehc from eehc2_amt) should be moved to Other revenues.  
+- State employer contributions that are NOT for healthcare (eehc from eehc2_amt) should be moved to Other revenues.  
 
 - State pension contributions (pension_amt from pension2_fy22) should be added to Other revenues.  
 - Local Government Transfers (exp_970) should be on the expenditure side.  
@@ -1059,6 +1057,8 @@ Create total revenues and total expenditures only:
 
 - after aggregating expenditures and revenues, pivoting wider, and left_joining the additional mini dataframes (med_option_recent, pension2_fy22, eehc2_amt), then I want to drop the columns that I no longer want and then pivot_longer(). After pivoting_longer() and creating `rev_long` and `exp_long`, expenditures and revenues are in the same format and can be combined together for the totals and gap each year.   
 
+> human services vs family  services vs medicaid???
+
 
 ```{r rev-exp-totals-long}
 rev_long <- pivot_longer(ff_rev, rev_02:rev_78new, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
@@ -1117,7 +1117,7 @@ exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Categor
              Category == "427" ~ "EMPLOYMENT SECURITY" ,
              Category == "444" ~ "HUMAN SERVICES" ,
              Category == "448" ~ "Innovation and Technology", # AWM added fy2022
-             Category == "478" ~ "HEALTHCARE & FAM SER NET OF MEDICAID", 
+             Category == "478" ~ "HEALTHCARE & FAMILY SERVICES (non-Medicaid)", 
              Category == "482" ~ "PUBLIC HEALTH", 
              Category == "492" ~ "REVENUE", 
              Category == "494" ~ "TRANSPORTATION" ,
@@ -1161,8 +1161,9 @@ year_totals <- aggregated_totals_long %>%
   rename(
          Expenditures = exp,
          Revenue = rev) %>%  
-  mutate(Gap = Revenue - Expenditures)
+  mutate(Gap = Revenue - Expenditures) %>%
 # creates variable for the Gap each year
+  arrange(-Year)
 
 year_totals
 
@@ -1180,7 +1181,7 @@ Graphs made from `aggregated_totals_long` dataframe.
 ```{r}
 aggregated_totals_long %>%  
   filter(type == "exp") %>% # uses only expenditures
-  ggplot(aes(x = Year, y = Dollars, group = Category)) +
+  ggplot(aes(x = Year, y = Dollars, color = Category_name)) +
   geom_line()+
     xlab("Year") + 
     ylab("Millions of Dollars")  +
@@ -1188,7 +1189,7 @@ aggregated_totals_long %>%
 
 aggregated_totals_long %>%  
   filter(type == "rev") %>% #uses only revenues
-  ggplot(aes(x = Year, y = Dollars, group = Category, label = Category_name)) +
+  ggplot(aes(x = Year, y = Dollars, group = Category)) +
   geom_line()+
     xlab("Year") + 
     ylab("Millions of Dollars")  +
