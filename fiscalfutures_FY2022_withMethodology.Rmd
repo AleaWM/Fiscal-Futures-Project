@@ -468,7 +468,7 @@ table(exp_temp$pension)
 ```
 
 
-- *To do: DONE* add "& fund !=0183" to teacher retirement pensions code below  - FY22 AWM     
+- *DONE* add "& fund !=0183" to teacher retirement pensions code below  - FY22 AWM     
   - fund = 0183 from 1999 to 2005, org_name = Serve America, fund_name is post traumatic stress awareness
   - > fund != "0183" | 193  & appr_org != "55"
 
@@ -524,6 +524,10 @@ exp_temp <- anti_join(exp_temp, transfers_drop)
 
 ### State employee healthcare costs
 
+
+State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employee contributions are not considered a revenue source or an expenditure in our analysis.
+
+
 Fund = 0457 is "Group insurance premium", in_ff = 1
 Fund = 0193 is "Local govt health insurance reserve", in=ff = 0
 fund = 0477 is "Community College Health Insurance", in=ff = 0.   
@@ -540,9 +544,9 @@ All employer contributions are coded as object = 1180.
 - eehc = 0 means it is NOT a state healthcare cost but it is an employer contribution of some type to some fund   
 - eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance
 
-```{r eehc1}
+```{r healthcare-employee-contributions, eval=FALSE, include = FALSE}
 
-# examine group insurance items
+# examine group insurance totals per year
 group_ins <- exp_temp %>% 
   mutate(eehc = ifelse(
     # group insurance contributions for 1998-2005 and 2013-present
@@ -554,7 +558,7 @@ group_ins <- exp_temp %>%
     group_by(fy) %>% 
     summarize(dropped_group_premiums = sum(expenditure))
 
-# examine healthcare cost items
+# examine healthcare cost items total per year
 healthcare_costs <- exp_temp %>% 
   mutate(eehc = ifelse(
     # group insurance contributions for 1998-2005 and 2013-present
@@ -565,15 +569,6 @@ healthcare_costs <- exp_temp %>%
   mutate(expenditure = ifelse(eehc==0, 0, expenditure)) %>%    
   group_by(fy) %>% 
     summarize(cost_of_provision = sum(expenditure))
-
-exp_temp <- exp_temp %>% 
-  mutate(eehc = ifelse(
-    # group insurance contributions for 1998-2005 and 2013-present
-   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) )%>% 
-  mutate(eehc = ifelse(
-    # group insurance contributions for 2006-2012
-    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
-  mutate(expenditure = ifelse(eehc==0, 0, expenditure)) 
 
 exp_temp_check <- exp_temp %>% 
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
@@ -586,12 +581,29 @@ exp_temp_check <- exp_temp %>%
     #  obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & (fy>2020) ~ "904",
 
       TRUE ~ as.character(agency))) %>%
+  
   mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
          group = ifelse(agency == "904", "904", as.character(agency))) %>% # creates group variable
 filter(group == "904") %>% group_by(fy) %>% summarise(healthcare_cost = sum(expenditure))
+
 exp_temp_check
 
 # Looks good, Sept 28 AWM
+```
+
+
+```{r eehc1}
+#if observation is a group insurance contribution, then the expenditure amount is set to $0 (essentially dropped from analysis)
+exp_temp <- exp_temp %>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 1998-2005 and 2013-present
+   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) )%>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 2006-2012
+    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
+  mutate(expenditure = ifelse(eehc==0, 0, expenditure)) 
+
+
 
 exp_temp <- exp_temp %>% 
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
@@ -599,20 +611,24 @@ exp_temp <- exp_temp %>%
       fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services using health insurance reserve - stopped using this in 2012
       TRUE ~ as.character(agency))) %>%
   mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
+         in_ff = ifelse( agency == "904", 1, in_ff),
          group = ifelse(agency == "904", "904", as.character(agency)))  # creates group variable
 
-#Default group = agency number
+# Default group = agency number
 
 # this code for dealing with group insurance means that eehc no longer needs to be created or added into revenue at a later stage.
 
+exp_temp %>% filter(group == "904") %>% group_by(fy) %>% summarise(healthcare_cost = sum(expenditure)) %>% arrange(-fy)
+
 ```
 
-this code for dealing with group insurance means that eehc no longer needs to be created or added into revenue at a later stage.
+> This code chunk above for dealing with group insurance means that eehc no longer needs to be created or added into revenue at a later stage.
 
+> Employee contributions/insurance premiums from the revenue side DO need to be subtracted from the total cost of employee healthcare for the net cost 
 
-```{r eehc, eval = FALSE, include = FALSE}
+```{r eehc-old-method, eval = FALSE, include = FALSE}
+
 # identifies eehc values that would have been excluded due to in_ff == 0 before recoding
-
 exp_temp <- exp_temp %>% 
   mutate(eehc = ifelse(
    ( (object == "1180" | object =="1900") & agency == "416") |
@@ -623,19 +639,10 @@ exp_temp <- exp_temp %>%
   mutate(in_ff = ifelse(eehc == 2, "1", in_ff) ) 
 
 
-
-
-|(agency == "478" & object == "1180"  ), 1, 0)) %>%
-  #mutate(eehc = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 1, eehc)  ) %>%
-  #  mutate(expenditure = ifelse(obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & fy > 2020, 0, expenditure)  ) %>% # Francis's method 9.22.22
-  mutate(eehc = ifelse((eehc == 1 & in_ff =="0"), 2, eehc)) %>% # if eehc == 1 AND in_ff was zero, then recode eehc to 2, otherwise leave eehc as it was.  Mostly helps flag things that would have been excluded due to default in_ff coding 
-  mutate(in_ff = ifelse(eehc == 2, "1", in_ff) )
-
 eehc_2_long <- exp_temp %>%
 # recodes in_ff to 1 if eehc was coded to 2 to make sure they are included in fiscal futures.
   filter(eehc == 2) # keeps only eehc == 2, items that would have been excluded based on in_ff original coding
 
-# 146 observations
 eehc_2_long
 
 # summarizes by year totals for state employee healthcare costs == 2
@@ -651,35 +658,9 @@ exp_temp %>%
   write_csv("all_eehc.csv")
 
 exp_temp <- anti_join(exp_temp, eehc_2_long, by = c("fy", "fund", "fund_name", "agency", "agency_name", "appr_org", "org_name", "obj_seq_type", "appn_net_xfer", "expenditure", "data_source", "object", "category", "sequence", "type", "trans_agency", "trans_type", "wh_approp_name"))
-# should remove the 146 eehc==2 observations from exp_temp
-
-# 149451 - 146 = 149305 obs (expected value after antijoin)
-```
-
-
-State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employee contributions are not considered a revenue source or an expenditure in our analysis.
-
-
-```{r state-employee-healthcare, eval = FALSE, include = FALSE}
-
-exp_temp <- exp_temp %>% 
-  mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
-      fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management is agency 416
-      fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services, stopped using this in 2012
-      fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2002 & fy<2006) ~ "904",
-      
-      fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2020) ~ "904",
-      
-      obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & (fy>2020) ~ "904",
-
-      TRUE ~ as.character(agency))) %>%
-  mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
-         group = ifelse(agency == "904", "904", as.character(agency))) # creates group variable. 
-
-#Default group = agency number
-
 
 ```
+
 
 
 ### Local Transfers
@@ -697,7 +678,7 @@ The five corresponding revenue items are:
 • Local share of Motor Fuel Tax 
   - Transportation Renewal Fund 0952
 
-> Complete: Add the mft mentioned in GOMB email to code
+> Completed: Add the mft mentioned in GOMB email to code
 
 ```{r transfers-to-local}
 exp_temp <- exp_temp %>% mutate(
@@ -724,10 +705,6 @@ exp_temp <- exp_temp %>% mutate(
 
 
 table(exp_temp$group) 
-
-exp_temp <- exp_temp %>% filter(in_ff != 0) # drops in_ff = 0 funds AFTER dealing with net-revenue above
-
-# 149305 obs to 145185 obs after filtering !=0
 
 ```
 
@@ -787,7 +764,7 @@ debt_drop <- exp_temp %>%
   filter(object == "8841" |  obj_seq_type == "88110108")  
 # escrow  OR  short term principle before 2021 - GO bond principle under this code in 2021 and 2022 ?
 
-debt_drop %>% group_by(fy) %>% summarize(sum = sum(expenditure))
+debt_drop %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
 
 
 debt_keep <- exp_temp %>% 
@@ -796,18 +773,14 @@ debt_keep <- exp_temp %>%
   mutate(debt = 1)
 # examine the debt costs we want to include
 
-debt_keep %>% group_by(fy) %>% summarize(sum = sum(expenditure))
+debt_keep %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
 
 
 exp_temp <- anti_join(exp_temp, debt_drop) %>%
-  mutate(group = ifelse(fund != "0455" & (object == "8813" | object == "8800"| obj_seq_type == "88110008" ), "903", as.character(group))
-#    agency = if_else(object== "8813", "903", as.character(agency)),
-   #     agency_name = if_else(agency == "903", "DEBT SERVICE", as.character(agency_name)),
-    #    group = if_else(agency == "903", "903", as.character(group)
-)
+  mutate(group = ifelse( fund != "0455" & (object == "8813" | object == "8800"| obj_seq_type == "88110008" ), "903", as.character(group)))
 
 # check work
-exp_temp %>%filter(group == "903") %>% group_by(fy) %>% summarize(sum = sum(expenditure))
+exp_temp %>%filter(group == "903") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
 
 ```
 
@@ -942,6 +915,12 @@ transfers <- transfers_long %>%
 exp_temp <- anti_join(exp_temp, transfers_long) 
 
 # write_csv(exp_temp, "all_expenditures_recoded.csv")
+
+
+dropped_inff_0 <- exp_temp %>% filter(in_ff == 0)
+
+exp_temp <- exp_temp %>% filter(in_ff != 0) # drops in_ff = 0 funds AFTER dealing with net-revenue above
+
 
 ```
 
