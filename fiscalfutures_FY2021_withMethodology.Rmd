@@ -1792,16 +1792,142 @@ expenditure_change
            
 ```
 
+
 # Create summary file
+
+
+Wide tables for summary file:
+```{r wide-summary-tables}
+revenue_wide <- pivot_longer(ff_rev, rev_02:rev_78new, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(Year = fy) %>%
+ # filter(Year <2022) %>%
+  mutate(Category_name = case_when(
+    Category == "02" ~ "Income Tax" ,
+    Category == "03" ~ "Corporate Income Tax" ,
+    Category == "06" ~ "Sales Tax" ,
+    Category == "09" ~ "Motor Fuel Taxes" ,
+ #   Category == "12" ~ "PUBLIC UTILITY TAXES, gross of PPRT" ,
+  #  Category == "15" ~ "CIGARETTE TAXES" ,
+ #   Category == "18" ~ "LIQUOR GALLONAGE TAXES" ,
+  #  Category == "21" ~ "INHERITANCE TAX" ,
+  #  Category == "24" ~ "INSURANCE TAXES&FEES&LICENSES, net of refunds " ,
+   # Category == "27" ~ "CORP FRANCHISE TAXES & FEES" ,
+ #   Category == "30" ~ "HORSE RACING TAXES & FEES",  # in Other
+    Category == "31" ~ "Medical Provider Assessments" ,
+  #  Category == "32" ~ "GARNISHMENT-LEVIES" , # dropped
+  #  Category == "33" ~  "LOTTERY RECEIPTS" ,
+   # Category == "35" ~  "OTHER TAXES" ,
+    Category == "36" ~  "Receipts from Revenue Producing", 
+    Category == "39" ~  "Licenses, Fees, Registration" ,
+   # Category == "42" ~  "MOTOR VEHICLE AND OPERATORS" ,
+#    Category == "45" ~  "STUDENT FEES-UNIVERSITIES",   # dropped
+#    Category == "48" ~  "RIVERBOAT WAGERING TAXES" ,
+  #  Category == "51" ~  "RETIREMENT CONTRIBUTIONS" , # dropped
+   # Category == "54" ~ "GIFTS AND BEQUESTS", 
+    Category == "57" ~  "Federal Other" ,
+    Category == "58" ~  "Federal Medicaid Reimbursements", 
+    Category == "59" ~  "Federal Transportation" ,
+ #   Category == "60" ~  "OTHER GRANTS AND CONTRACTS", #other
+#    Category == "63" ~  "INVESTMENT INCOME", # other
+ #   Category == "66" ~ "PROCEEDS,INVESTMENT MATURITIES" , #dropped
+ #   Category == "72" ~ "BOND ISSUE PROCEEDS",  #dropped
+ #   Category == "75" ~  "INTER-AGENCY RECEIPTS ",  #dropped
+ #   Category == "76" ~  "TRANSFER IN FROM OUT FUNDS",  #other
+   # Category == "78new" ~  "ALL OTHER SOURCES" ,
+   # Category == "79" ~   "COOK COUNTY IGT", #dropped
+ #   Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
+                 T ~ "Other Revenue Sources **"
+
+  ) ) %>% select(-type, -Category) %>% group_by(Year, Category_name) %>% summarise(Dollars= round(sum(Dollars),digits=2))
+
+revenue_wide
+
+```
+
+
+```{r wide-summary-tables2}
+revenue_wide2 <- revenue_wide %>% pivot_wider(names_from = Category_name, 
+              values_from = Dollars)
+
+revenue_wide2
+
+revenue_wide %>% pivot_wider(names_from = Year, 
+              values_from = Dollars)
+```
+
+
+```{r wide-summary-table-expenditure}
+expenditure_wide <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(Year = fy ) %>% 
+    filter(Year < 2022) %>%
+
+  mutate(Category_name = 
+           case_when(
+            # Category == "402" ~ "AGING" ,
+           #  Category == "406" ~ "AGRICULTURE", 
+             Category == "416" ~ "Central Management",
+            # Category == "418" ~ "CHILDREN AND FAMILY SERVICES", 
+             Category == "420" ~ "Commerce & Economic Opportunity",
+           #  Category == "422" ~ "NATURAL RESOURCES" ,
+            # Category == "426" ~ "CORRECTIONS",
+           #  Category == "427" ~ "EMPLOYMENT SECURITY" ,
+             Category == "444" ~ "Human Services" ,
+           #  Category == "478" ~ "HEALTHCARE & FAM SER NET OF MEDICAID", 
+           #  Category == "482" ~ "PUBLIC HEALTH", 
+           #  Category == "492" ~ "REVENUE", 
+             Category == "494" ~ "Transportation" ,
+           #  Category == "532" ~ "ENVIRONMENTAL PROTECT AGENCY" ,
+             Category == "557" ~ "Tollway" ,
+           #  Category == "684" ~ "IL COMMUNITY COLLEGE BOARD", 
+            # Category == "691" ~ "IL STUDENT ASSISTANCE COMM" ,
+           #  Category == "900" ~ "NOT IN FRAME",
+             Category == "901" ~ "State Pension Contribution",
+             Category == "903" ~ "Debt Service",
+             Category == "904" ~ "State Employee Healthcare",
+           #  Category == "910" ~ "LEGISLATIVE"  ,
+          #   Category == "920" ~ "JUDICIAL" ,
+          #   Category == "930" ~ "ELECTED OFFICERS" , 
+            # Category == "940" ~ "OTHER HEALTH-RELATED", 
+             Category == "941" ~ "Public Safety" ,
+           #  Category == "942" ~ "ECON DEVT & INFRASTRUCTURE" ,
+           #  Category == "943" ~ "CENTRAL SERVICES",
+           #  Category == "944" ~ "BUS & PROFESSION REGULATION" ,
+             Category == "945" ~ "Medicaid" ,
+             Category == "946" ~ "Capital Improvement" , 
+           #  Category == "948" ~ "OTHER DEPARTMENTS" ,
+            # Category == "949" ~ "OTHER BOARDS & COMMISSIONS" ,
+             Category == "959" ~ "K-12 Education" ,
+           #  Category == "960" ~ "UNIVERSITY EDUCATION",
+             Category == "970" ~ "Local Government Revenue Sharing",
+             T ~ "All Other Expenditures **")
+           ) %>% 
+  select(-type, -Category) %>% group_by(Year, Category_name) %>% summarise(Dollars= round(sum(Dollars),digits=2))
+
+expenditure_wide
+ # write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
+ # write_csv(rev_long, "revenue_recoded_long_FY22.csv")
+
+expenditure_wide2 <- expenditure_wide%>% pivot_wider(names_from = Category_name, 
+              values_from = Dollars)
+
+expenditure_wide2
+
+expenditure_wide %>% pivot_wider(names_from = Year, 
+              values_from = Dollars)
+
+```
+
+
 
 Saves main items in one excel file named `summary_file.xlsx`. Delete `eval=FALSE` to run on local computer.
 
-```{r }
+```{r}
 #install.packages("openxlsx")
 library(openxlsx)
 
-dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long, 
-                      `Table 1` = expenditure_change, `Table 2` = revenue_change,
+dataset_names <- list('Aggregate Revenues' = revenue_wide2, 'Aggregate Expenditures' = expenditure_wide2, 
+                      'rev_long' = rev_long, 'exp_long' = exp_long, 
+                      'Table 1' = expenditure_change, 'Table 2' = revenue_change,
                       'Table 4.a' = CAGR_revenue_summary, 'Table 4.b' = CAGR_expenditures_summary, 
                       'year_totals' = year_totals)
 

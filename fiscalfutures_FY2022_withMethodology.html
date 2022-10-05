@@ -3389,8 +3389,8 @@ dropped_inff_0 &lt;- exp_temp %&gt;% filter(in_ff == 0)
 
 exp_temp &lt;- exp_temp %&gt;% filter(in_ff == 1) # drops in_ff = 0 funds AFTER dealing with net-revenue above</code></pre>
 </div>
-<div id="debt-service" class="section level2">
-<h2>Debt Service</h2>
+<div id="debt-service" class="section level3">
+<h3>Debt Service</h3>
 <p>Debt Service expenditures include interest payment on both short-term
 and long-term debt. We do not include escrow or principal payments.</p>
 <p><strong>Decision from Sept 30 2022:</strong></p>
@@ -3541,6 +3541,7 @@ debt_keep &lt;- debt_keep %&gt;%
     in_ff = ifelse(group == &quot;903&quot;, 1, as.character(in_ff)))
 
 debt_keep_yearly &lt;- debt_keep %&gt;% group_by(fy, group) %&gt;% summarize(debt_cost = sum(expenditure,na.rm=TRUE)/1000000) %&gt;% select(-group)</code></pre>
+</div>
 <div id="medicaid" class="section level3">
 <h3>Medicaid</h3>
 <p><strong>Medicaid.</strong> That portion of the Healthcare and Family
@@ -3557,7 +3558,6 @@ and funding to locations that provide public services.</p>
 fund == 0793 and obj_seq_type == 49000000. So can defend the “mistake”
 of including healthcare provider relief as Medicaid expenditure.</li>
 </ul>
-</div>
 </div>
 <div id="add-fiscal-future-group-codes" class="section level2">
 <h2>Add Fiscal Future group codes</h2>

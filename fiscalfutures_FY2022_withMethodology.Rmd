@@ -658,7 +658,9 @@ dropped_inff_0 <- exp_temp %>% filter(in_ff == 0)
 exp_temp <- exp_temp %>% filter(in_ff == 1) # drops in_ff = 0 funds AFTER dealing with net-revenue above
 
 ```
-## Debt Service
+
+
+### Debt Service
 
 
 Debt Service expenditures include interest payment on both short-term and long-term debt. We do not include escrow or principal payments. 
