@@ -253,7 +253,7 @@ exp_1998_2022 <- allexpfiles %>%
 
 > Note: `exp:1998_2022` and the `funds_ab_in_2022` dataframes have a fund_cat_name variable (AND THEY DONT MATCH 100%) which ends up creating a .x and .y version of the variable when they are joined together. Inspect this more later. It is not a huge concern because the fund number is what matters more.
 
-```{r create-exp_temp}
+```{r create-exp_temp, warning = FALSE, message = FALSE}
 funds_ab_in_2022 = readxl::read_excel("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/funds_ab_in_2022.xlsx")
 
 
@@ -423,8 +423,6 @@ exp_temp <-  exp_temp %>%
 table(exp_temp$pension) # same number of total observations > 0 as pension_check
 ```
 
-11290008 employee expenditure
-
 ~~POB-funded contributions to JRS, SERS, GARS, and TRS must be accounted for in a different way:~~
 
 - Old and disputed: Pension = 2 represents retirement pension payments paid for with POB-funded contributions that were excluded from the fiscal futures analysis by default ( in_ff was 0 because bond financed funds are not sustainable cash flows) but should be included and added to the revenue side under "Other Revenues" in later steps. -- but why???  
@@ -568,6 +566,7 @@ exp_temp_check
 # Looks good, Sept 28 AWM
 ```
 
+if observation is a group insurance contribution, then the expenditure amount is set to $0 (essentially dropped from analysis)
 
 ```{r eehc1}
 #if observation is a group insurance contribution, then the expenditure amount is set to $0 (essentially dropped from analysis)
@@ -578,11 +577,7 @@ exp_temp <- exp_temp %>%
   mutate(eehc = ifelse(
     # group insurance contributions for 2006-2012
     fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
-  mutate(expenditure = ifelse(eehc==0, 0, expenditure)) 
-
-
-
-exp_temp <- exp_temp %>% 
+  mutate(expenditure = ifelse(eehc=="0", 0, expenditure)) %>%
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
       fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management Bureau of benefits using health insurance reserve 
       fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services using health insurance reserve - stopped using this in 2012
@@ -593,13 +588,19 @@ exp_temp <- exp_temp %>%
 
 # Default group = agency number
 
-# this code for dealing with group insurance means that eehc no longer needs to be created or added into revenue at a later stage.
+healthcare_costs <- exp_temp %>% filter(group == "904")
 
-exp_temp %>% filter(group == "904") %>% group_by(fy) %>% summarise(healthcare_cost = sum(expenditure)) %>% arrange(-fy)
+healthcare_costs %>% group_by(fy) %>% summarise(healthcare_cost = sum(expenditure)) %>% arrange(-fy)
+
+
+exp_temp <- anti_join(exp_temp, healthcare_costs)
+
+healthcare_costs_yearly <- healthcare_costs %>% group_by(fy, group) %>% summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)/1000000) %>% select(-group)
+
 
 ```
 
-> This code chunk above for dealing with group insurance means that eehc no longer needs to be created or added into revenue at a later stage.
+> This code chunk above for dealing with group insurance means that healthcare costs need to be added to expenditures after other group names are assigned. 
 
 > Employee contributions/insurance premiums from the revenue side DO need to be subtracted from the total cost of employee healthcare for the net cost 
 
@@ -696,9 +697,16 @@ transfers <- transfers_long %>%
 
 exp_temp <- anti_join(exp_temp, transfers_long)
 
-```
 
+dropped_inff_0 <- exp_temp %>% filter(in_ff == 0)
+
+exp_temp <- exp_temp %>% filter(in_ff == 1) # drops in_ff = 0 funds AFTER dealing with net-revenue above
+
+```
 ## Debt Service
+
+
+Debt Service expenditures include interest payment on both short-term and long-term debt. We do not include escrow or principal payments. 
 
 ```{r old-way, include = FALSE, eval=FALSE}
 # old way, wrong:
@@ -711,13 +719,13 @@ exp_temp <- anti_join(exp_temp, transfers_long)
 ```
 
 
-Debt Service expenditures include principal and interest payment on both short-term and long-term debt. We do not include escrow payments. 
+
 
 **Decision from Sept 30 2022:**
 
-We are no longer including short term principal payments as a cost; only interest on short term borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond revenues as revenues. This caused expenditures to be inflated because we were essentially counting debt twice- the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
+We are no longer including short term principal payments as a cost; only interest on short term borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond proceeds as revenues. This caused expenditures to be inflated because we were essentially counting debt twice - the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
 
-- Include principle and interest for long-term debt that likely funds capital projects. Debt service is a proxy for capital depreciation and should be included as a cost. Tollway debt is longterm debt and is also included. 
+- Include interest for long-term debt that likely funds capital projects.  
 
 8813 interest **INCLUDE AS COST**
 8811 is for principle **EXCLUDE from analysis**
@@ -825,32 +833,33 @@ all_debt %>% ggplot() +
 
 ```
 
+Capital projects include the IL Civic Center and Build Illinois Bonds. Tollway principal and interest has been dropped from Debt Service but is counted in Tollway Expenditure Cost.
 
 ```{r debt-service}
 debt_drop <- exp_temp %>% 
-  filter(object == "8841" |  obj_seq_type == "88110108")  
-# escrow  OR  short term principle before 2021 - GO bond principle under this code in 2021 and 2022 ?
+  filter(object == "8841" |  object == "8811")  
+# escrow  OR  principle
 
 debt_drop %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
 
 
 debt_keep <- exp_temp %>% 
-  filter(fund != "0455" & (object == "8813" | object == "8800"| obj_seq_type == "88110008" 
-  )) %>% 
-  mutate(debt = 1)
+  filter(fund != "0455" & (object == "8813" | object == "8800" )) 
 # examine the debt costs we want to include
 
-debt_keep %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
+debt_keep %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy) 
 
 
-exp_temp <- anti_join(exp_temp, debt_drop) %>%
+exp_temp <- anti_join(exp_temp, debt_drop) 
+exp_temp <- anti_join(exp_temp, debt_keep)
+
+debt_keep <- debt_keep %>%
   mutate(
-    agency = ifelse(fund != "0455" & (object == "8813" | object == "8800"| obj_seq_type == "88110008"), "903", as.character(agency)),
-    group = ifelse(fund != "0455" & (object == "8813" | object == "8800"| obj_seq_type == "88110008"), "903", as.character(group)),
-    in_ff = ifelse(group == "903", 1, in_ff))
+    agency = ifelse(fund != "0455" & (object == "8813" | object == "8800"), "903", as.character(agency)),
+    group = ifelse(fund != "0455" & (object == "8813" | object == "8800"), "903", as.character(group)),
+    in_ff = ifelse(group == "903", 1, as.character(in_ff)))
 
-# check work
-exp_temp %>% filter(group == "903") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
+debt_keep_yearly <- debt_keep %>% group_by(fy, group) %>% summarize(debt_cost = sum(expenditure,na.rm=TRUE)/1000000) %>% select(-group)
 
 ```
 
@@ -879,11 +888,6 @@ medicaid_check %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrang
 ```{r group-codes}
 
 
-dropped_inff_0 <- exp_temp %>% filter(in_ff == 0)
-
-exp_temp <- exp_temp %>% filter(in_ff != 0) # drops in_ff = 0 funds AFTER dealing with net-revenue above
-
-
 exp_temp <- exp_temp %>%
   #mutate(agency = as.numeric(agency) ) %>%
   # arrange(agency)%>%
@@ -892,7 +896,7 @@ exp_temp <- exp_temp %>%
       agency>"100"& agency<"200" ~ "910", # legislative
       
       agency == "528"  | (agency>"200" & agency<"300") ~ "920", # judicial
-      
+      pension>0  ~ "901", # pensions
       (agency>"309" & agency<"400") ~ "930",    # elected officers
       
       agency == "586" ~ "959", # create new K-12 group
@@ -978,8 +982,14 @@ table(exp_temp$group_name)
 
 exp_temp %>% filter(group_name == "Check name")
 
-# write_csv(exp_temp, "all_expenditures_recoded.csv")
+#write_csv(exp_temp, "all_expenditures_recoded.csv")
 
+```
+
+```{r}
+exp_temp %>% filter(fy == 2021) %>% group_by(group) %>% summarise(sum =sum(expenditure)/1000000) #%>% format(~, big.mark= ",",  scientific = F)
+
+exp_temp %>% filter(fy == 2021 & group == "930") %>% group_by(agency) %>% summarise(sum =sum(expenditure)/1000000) #%>% format(~, big.mark= ",",  scientific = F)
 ```
 
 
@@ -987,30 +997,13 @@ All expenditures recoded but not aggregated: Allows for inspection of individual
 
 Note that these are the raw figures BEFORE we take the additional steps:   
 
-- Subtract employee premiums from State Employee Healthcare expenditures  
+- Subtract employee insurance premiums from State Employee Healthcare expenditures  
 - Subtract tax refunds from tax revenues by revenue type.  
 - Subtract employee pension contributions (originally a dropped revenue) from State Pension expenditures
 
-- **NOT DOING ANYMORE**: Add employee health costs and certain pension contributions to All Other Revenues   
+- **NOT DOING ANYMORE**: ~~Add employee health costs and certain pension contributions to All Other Revenues~~ 
 
 
-```{r final-table-with-labels}
-
-exp_temp %>%
-  group_by(year, group) %>%
-  summarize(sum_expenditure = sum(expenditure)/1000000) %>%
-  arrange(year) %>%
-  pivot_wider(names_from = "group", values_from = "sum_expenditure")
-
-
-aggregate_exp_labeled <- exp_temp %>%
-  group_by(year, group_name) %>%
-  summarize(sum_expenditure = sum(expenditure)/1000000) %>%
-  arrange(year) %>%
-  pivot_wider(names_from = "group_name", values_from = "sum_expenditure")
-
-aggregate_exp_labeled
-```
 
 
 # Modify  Revenue data
@@ -1040,7 +1033,7 @@ You need to update the funds_ab_in and ioc_source_type file every year!
 
 > include how to do that later
 
-```{r create-rev-temp}
+```{r create-rev-temp, warning = FALSE, message=FALSE}
 # fund info to revenue for all years
 rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source)
 
@@ -1096,9 +1089,13 @@ Employee contributions to pension are a revenue source for the state. In order t
 
 # current year employee revenue source = 0573, contributions by employee == 572 (stops at 2011)
 pension_rev <- rev_temp %>% filter(rev_type == "51" & source == "0573" | source == "0572")
-pension_rev <- rev_temp %>% filter(rev_type == "51" & source == "0573" | source == "0572") %>% group_by(fy) %>%summarise(pension_rev_sum = sum(receipts)/1000000)
+
 
 rev_type <- anti_join(rev_temp, pension_rev)
+
+pension_rev_yearly <- rev_temp %>% filter(rev_type == "51" & source == "0573" | source == "0572") %>% 
+  group_by(fy, rev_type) %>%
+  summarise(pension_rev_sum = sum(receipts, na.rm=TRUE)/1000000) %>% select(-rev_type)
 
 ```
 
@@ -1109,9 +1106,8 @@ rev_type <- anti_join(rev_temp, pension_rev)
 Employee insurance premiums for healthcare are a revenue source for the state. In order to get the true cost of State Employee Healthcare, total employee insurance premiums should be subtracted from the healthcare expenditure total (exp_904 - premiums). Gather all employee premiums into `opt_premiums` and subtract it from the Expenditure table after aggregating and pivoting steps.
 
 0120 = ins prem-option life
-0120 = ins prem-opttional life/univ
+0120 = ins prem-optional life/univ
 
-0345 = 
 0347 = optional health - HMO
 0348 = optional health - dental 
 0349 = optional health - univ/local SI
@@ -1119,18 +1115,15 @@ Employee insurance premiums for healthcare are a revenue source for the state. I
 0351 = optional health - retirement
 0352 = optional health - retirement SI
 0353 = optional health - retire/dental
-0354 = optional health - retiremet hmo
+0354 = optional health - retirement hmo
 
 2199-2209 = various HMOs, dental, health plans from Health Insurance Reserve (fund)
 
-```{r step-3.6-option-premiums}
+```{r step-3.6-insurance-premiums}
 
 opt_premiums_CHECK <- rev_temp %>% 
   filter((fund=="0907" | fund == "0457") & (source=="0120" | source=="0121" | (source>"0345" & source<"0357") | (source>"2199" & source<"2209")                                            ) 
          )
-
-rev_temp <-  rev_temp %>% mutate(med_option_recent = ifelse(
-    fund=="0907" & (source=="0120"| source=="0121"| (source>"0345" & source<"0357")|(source>"2199" & source<"2209")), 1, 0))
 
 #collect optional insurance premiums to fund 0907 for use in eehc expenditure  
 rev_temp <- rev_temp %>% 
@@ -1151,7 +1144,7 @@ rev_temp <- rev_temp %>%
 
 Based on Alexis's comments - Look at items considered "Licenses and Fees":
 ```{r}
-rev_temp %>% filter(rev_type == "39")
+#rev_temp %>% filter(rev_type == "39") #%>% group_by(source_name_AWM,fy) %>% summarize(sum=sum(as.numeric(receipts),na.rm = TRUE)) %>% ggplot() + geom_line(aes(x=fy, y = sum, group = source_name_AWM ))
 ```
 
 ```{r step-3.7}
@@ -1235,11 +1228,6 @@ rev_temp %>%
   summarize(total_reciepts = sum(receipts)/1000000) %>%
   pivot_wider(names_from = rev_type_new, values_from = total_reciepts, names_prefix = "rev_") 
 
-```
-
-
-
-```{r}
 # combines smallest 4  categories to to "Other"
 # they were the 4 smallest in past years, are they still the 4 smallest? 
 
@@ -1261,7 +1249,7 @@ rm(exp_1998_2022)
 
 - Subtract employee insurance premiums from 904 (State Employee Healthcare Expenditures - Employee Premiums = Actual state healthcare costs. Subtract med_option_amt_recent in med_option_recent from exp_904 in ff_exp). 
 
-- **WRONG:** State pension contributions funded by bonds (pension_amt from pension2_fy22) should be added to Other revenues.  
+- **WRONG:** ~~State pension contributions funded by bonds (pension_amt from pension2_fy22) should be added to Other revenues.~~    
   - **Maybe right??**: Employee contributions should be subtracted from from state pension costs. 
   - exp_901 - rev_51? even though rev_type == 51 (retirement contributions) is dropped based on past code. 
 
@@ -1367,11 +1355,16 @@ ff_exp <- exp_temp %>%
   summarize(sum_expenditures = sum(expenditure, na.rm=TRUE)/1000000 ) %>%
   pivot_wider(names_from = "group", values_from = "sum_expenditures", names_prefix = "exp_")%>%
   
+    left_join(debt_keep_yearly) %>%
+  mutate(exp_903 = debt_cost) %>%
+
+    left_join(healthcare_costs_yearly) %>%
+
   # join state employee healthcare and subtract employee premiums
   left_join(med_option_recent, by = c("fy" = "year")) %>%
-  mutate(exp_904_new = exp_904 - med_option_amt_recent) %>% # state employee healthcare premiums
+  mutate(exp_904_new = (`healthcare_cost` - `med_option_amt_recent`)) %>% # state employee healthcare premiums
   
-  left_join(pension_rev) %>%
+  left_join(pension_rev_yearly) %>%
       mutate(exp_901_new = exp_901 - pension_rev_sum) %>% #employee pension contributions
 
 
@@ -1379,12 +1372,29 @@ ff_exp <- exp_temp %>%
   left_join(transfers) %>%
   mutate(exp_970 = exp_971 + exp_972  + exp_975 + exp_976)
 
-ff_exp<- ff_exp %>% select(-c(exp_904, exp_901, med_option_amt_recent, pension_rev_sum, exp_971:exp_976)) # drop unwanted columns
+ff_exp<- ff_exp %>% select(-c(exp_901, med_option_amt_recent, debt_cost, healthcare_cost, pension_rev_sum, exp_971:exp_976)) # drop unwanted columns
 ff_exp
+```
+```{r final-table-with-labels, include = FALSE, eval=FALSE}
+
+exp_temp %>%
+  group_by(year, group) %>%
+  summarize(sum_expenditure = sum(expenditure)/1000000) %>%
+  arrange(year) %>%
+  pivot_wider(names_from = "group", values_from = "sum_expenditure")
+
+
+aggregate_exp_labeled <- exp_temp %>%
+  group_by(year, group_name) %>%
+  summarize(sum_expenditure = sum(expenditure)/1000000) %>%
+  arrange(year) %>%
+  pivot_wider(names_from = "group_name", values_from = "sum_expenditure")
+
+aggregate_exp_labeled
 ```
 
 
- # Clean Table Outputs 
+# Clean Table Outputs 
 
 Create total revenues and total expenditures only:
 
@@ -1836,7 +1846,7 @@ dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long,
                       'Table 4.a' = CAGR_revenue_summary, 'Table 4.b' = CAGR_expenditures_summary, 
                       'year_totals' = year_totals)
 
-#write.xlsx(dataset_names, file = 'summary_file_AWM_v4.xlsx')
+#write.xlsx(dataset_names, file = 'summary_file_AWM_v5.xlsx')
 ```
 
 
