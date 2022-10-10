@@ -1,7 +1,7 @@
 ---
 title: "FY2022 Analysis - Methodology for Fiscal Futures "
 author: "Alea Wilbur"
-date: "September 2022"
+date: "October 2022"
 output:
   html_document:
     code_folding: hide
@@ -11,7 +11,7 @@ output:
 ---
 
 
-```{r warning = FALSE, message=FALSE}
+```{r warning = FALSE, message=FALSE, include=FALSE}
 
 
 #install.packages("rlang")
@@ -37,18 +37,18 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE
                       )
 ```
 
-# Inspecting new FY22 data files
+# Inspecting new FY21 data files
 
 Data files for closed years have been obtained from IOC.  Source spending data is at the fund-agency-object level and source revenue data is at the fund-agency-source level.  
 
 Revenue File:  
-- 684 Fund Numbers  
-- 1185 Revenue sources  
-- 80 Agencies  
+- 671 Fund Numbers  
+- 1182 Revenue sources  
+- 84 Agencies  
 
 Expenditure File:  
-- 708 Funds  
-- 107 Agencies - 98 Division Numbers, 313 Division names  
+- 709 Funds  
+- 106 Agencies - 98 Division Numbers, 315 Division names  
 
 
 # Variables
@@ -82,17 +82,6 @@ Detail Object is a department classification used by the State to group expenses
 Combine past years: All revenue files are in a `revenue` folder that I reference when I set the working directory. When adding new fiscal years, put the the newest year of data for revenue and expenditures in their respective folders. 
 
 __Pre-FY2022__
- 
- 
-```{r eval = FALSE, include = FALSE}
-# Agency == 799 for Statutory transfers 
-#  Object == 1993 is for Interfund cash transfers  
-exp_temp <- exp_temp %>% 
-  mutate(transfer = ifelse(org_name == "TRANSFERS", 1, 0),
-         trans_agency = ifelse(),
-         trans_type = ifelse())
-```
-
 
 The code chunk below takes the .dta files for all fiscal years before FY 2022 and binds them together.  Variable names were manually changed by past researchers so that they were consistent across years. 
 
@@ -156,7 +145,7 @@ read_xlsx("Fis_Fut_Rev_2022.xlsx") %>%
   mutate(fund_cat = FIND_COLUMN, #create fund_cat column
          fund_cat_name = FIND_NAME) # create fund_cat_name column
 
-read_xlsx("Fis_Fut_Exp_2022.xlsx") %>% 
+read_xlsx("Fis_Fut_Exp_2021.xlsx") %>% 
   rename(fy = 'FISCAL YEAR',
          fund = 'FUND #',
          fund_name = 'FUND NAME',
@@ -170,7 +159,7 @@ read_xlsx("Fis_Fut_Exp_2022.xlsx") %>%
          expenditure = 'EXPENDED THRI 7/26/22'
   ) %>%
   # do these come from funds_ab_whatever file?
-  mutate(data_source = "exp IOC Aug 2022",
+  mutate(data_source = "exp IOC Oct 2021",
          object = ,
          seq = ,
          type = ,
@@ -213,11 +202,7 @@ rev_1998_2022 <- allrevfiles %>%
   mutate(fund =  ifelse(fy < 2020 & fund %in% c("0254", "0304", "0324", "0610", "0887", "0908", "0939", "0968"), str_replace(fund, "0","9"), fund)) %>%
   
   mutate(fund =  ifelse(fy < 2021 & fund %in% c("0255", "0325", "0348", "0967", "0972"), str_replace(fund, "0","9"), fund) ) %>%
-  
-   #2022 changes
-  mutate(fund = ifelse(fy < 2022 & fund %in% c("0110","0165","0351", "0392", "0393", "0422", "0544", "0628", "0634",  "0656", "0672", "0683", "0723", "0742", "0743"), str_replace(fund, "0","9"), as.character(fund))) %>%  # replaces first 0 it finds with a 9
-  mutate(fund = ifelse(fy < 2022 & fund == "0367", "10367", as.character(fund)) # fund reused for 3rd time
-)
+
 ```
 
 Expenditure recoding: 
@@ -244,11 +229,6 @@ exp_1998_2022 <- allexpfiles %>%
   
   mutate(fund =  ifelse(fy < 2021 & fund %in% c("0255", "0325", "0348", "0967", "0972"), str_replace(fund, "0","9"), fund))  %>%
   
-  #2022 changes
-  mutate(fund = ifelse(fy < 2022 & fund %in% c("0110","0165","0351", "0392", "0393", "0422", "0544", "0628", "0634",  "0656", "0672", "0683","0723", "0742", "0743"), str_replace(fund, "0","9"), as.character(fund))) %>%  # replaces first 0 it finds with a 9
-  mutate(fund = ifelse(fy < 2022 & fund == "0367", "10367", as.character(fund)) # fund reused for 3rd time 
-  )
-
 ```
 
 
@@ -422,17 +402,13 @@ exp_temp <-  exp_temp %>%
 table(exp_temp$pension) # same number of total observations > 0 as pension_check
 ```
 
-~~POB-funded contributions to JRS, SERS, GARS, and TRS must be accounted for in a different way:~~
-
-- ~~Old and disputed: Pension = 2 represents retirement pension payments paid for with POB-funded contributions that were excluded from the fiscal futures analysis by default ( in_ff was 0 because bond financed funds are not sustainable cash flows) but should be included and added to the revenue side under "Other Revenues" in later steps.~~  
+~~POB-funded contributions to JRS, SERS, GARS, and TRS must be accounted for in a different way:Pension = 2 represents retirement pension payments paid for with POB-funded contributions that were excluded from the fiscal futures analysis by default ( in_ff was 0 because bond financed funds are not sustainable cash flows) but should be included and added to the revenue side under "Other Revenues" in later steps.~~  <-- No longer done.
 
 
 Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
 
 ```{r pensions-POB}
-
-# special accounting of pension obligation bond (POB)-funded contributions to JRS, SERS, GARS, TRS 
-
+ 
 exp_temp <- exp_temp %>% 
   # change object for 2010 and 2011, retirement expenditures were bond proceeds
   mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", object)) %>% 
@@ -454,22 +430,6 @@ exp_temp <- exp_temp %>%
 
 - *DONE* add "& fund !=0183" to teacher retirement pensions code below  - FY22 AWM     
   - fund = 0183 from 1999 to 2005, org_name = Serve America, fund_name is post traumatic stress awareness
-
-
-Pension2 used to be added to revenue side as All Other Revenue sources but as of Oct 2022, we can not determine why that was done and are no longer doing that.
-```{r pensions1, include=FALSE, eval = FALSE}
-#creates long version without any aggregation 
-pension_2_long <- exp_temp %>% filter(pension == 2 ) %>% rename(year = fy) 
-
-pension_2_long
-
-pension2_fy22<- pension_2_long %>% group_by(year) %>% 
-  summarize(pension_amt = sum(expenditure)/1000000)
-
-#pension2_fy22 # used in final tables
-#exp_temp <- anti_join(exp_temp, pension_2_long)  # 148 observations removed with antijoin
-```
-
 
 ### Drop Interfund transfers
 
