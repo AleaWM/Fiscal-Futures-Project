@@ -201,7 +201,7 @@ rev_1998_2022 <- allrevfiles %>%
   
   mutate(fund =  ifelse(fy < 2020 & fund %in% c("0254", "0304", "0324", "0610", "0887", "0908", "0939", "0968"), str_replace(fund, "0","9"), fund)) %>%
   
-  mutate(fund =  ifelse(fy < 2021 & fund %in% c("0255", "0325", "0348", "0967", "0972"), str_replace(fund, "0","9"), fund) ) %>%
+  mutate(fund =  ifelse(fy < 2021 & fund %in% c("0255", "0325", "0348", "0967", "0972"), str_replace(fund, "0","9"), fund) )
 
 ```
 
@@ -227,7 +227,7 @@ exp_1998_2022 <- allexpfiles %>%
   
   mutate(fund =  ifelse(fy < 2020 & fund %in% c("0254", "0304", "0324", "0610", "0887", "0908", "0939", "0968"), str_replace(fund, "0","9"), fund)) %>%
   
-  mutate(fund =  ifelse(fy < 2021 & fund %in% c("0255", "0325", "0348", "0967", "0972"), str_replace(fund, "0","9"), fund))  %>%
+  mutate(fund =  ifelse(fy < 2021 & fund %in% c("0255", "0325", "0348", "0967", "0972"), str_replace(fund, "0","9"), fund))  
   
 ```
 
@@ -1176,7 +1176,9 @@ ff_rev <- ff_rev %>%
          ) %>% 
   select(-c(ref_02:ref_35, rev_76, rev_78, rev_99, rev_NA#, pension_amt
           #  , eehc
-            ))
+            )) %>%  # drop unwanted columns 
+  rowwise() %>% 
+  mutate(rev_TOTALS = sum(across(rev_02:rev_78new)))
 
 ff_rev
 
@@ -1185,8 +1187,8 @@ ff_rev
 
 Since I already pivot_wider()ed the table in the previous code chunk, I now change each column's name by using rename() to set new variable names. Ideally the final dataframe would have both the variable name and the variable label but I have not done that yet. 
 
-```{r}
-aggregate_rev_labels <- ff_rev %>%
+```{r eval = FALSE, include = FALSE}
+stata_labels_rev <- ff_rev %>%
   rename("INDIVIDUAL INCOME TAXES, gross of local, net of refunds" = rev_02,
          "CORPORATE INCOME TAXES, gross of PPRT, net of refunds" = rev_03,
          "SALES TAXES, gross of local share" = rev_06 ,
@@ -1223,7 +1225,7 @@ aggregate_rev_labels <- ff_rev %>%
          # "PRIOR YEAR REFUNDS" = rev_98 #dropped
   ) 
 
-aggregate_rev_labels
+stata_labels_rev
 
 # Still contains columns that should be dropped for the clean final aggregate table. Drop the variables I don't want in the output table in the "graphs" section.  
 
@@ -1261,9 +1263,14 @@ ff_exp <- exp_temp %>%
   left_join(transfers) %>%
   mutate(exp_970 = exp_971 + exp_972  + exp_975 + exp_976)
 
-ff_exp<- ff_exp %>% select(-c(exp_901, med_option_amt_recent, debt_cost, healthcare_cost, pension_rev_sum, exp_971:exp_976)) # drop unwanted columns
-ff_exp
+ff_exp<- ff_exp %>% 
+  select(-c(exp_901, med_option_amt_recent, debt_cost, healthcare_cost, pension_rev_sum, exp_971:exp_976)) %>%  # drop unwanted columns 
+  rowwise() %>% 
+  mutate(exp_TOTALS = sum(across(exp_402:exp_970)))
+
+
 ```
+
 ```{r final-table-with-labels, include = FALSE, eval=FALSE}
 
 exp_temp %>%
@@ -1291,11 +1298,11 @@ Create total revenues and total expenditures only:
 
 
 ```{r rev-exp-totals-long}
-rev_long <- pivot_longer(ff_rev, rev_02:rev_78new, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+rev_long <- pivot_longer(ff_rev, rev_02:rev_TOTALS, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
   rename(Year = fy) %>%
-  filter(Year <2022) %>%
+  filter(Year < 2022) %>%
   mutate(Category_name = case_when(
-    Category == "02" ~ "INDIVIDUAL INCOME TAXES, gross of local, net of refunds" ,
+    Category == "02" ~ "INDIVIDUAL INCOME TAXES, gross of local, net of refunds ($ mil.)" ,
     Category == "03" ~ "CORPORATE INCOME TAXES, gross of PPRT, net of refunds" ,
     Category == "06" ~ "SALES TAXES, gross of local share" ,
     Category == "09" ~ "MOTOR FUEL TAX, gross of local share, net of refunds" ,
@@ -1329,12 +1336,13 @@ rev_long <- pivot_longer(ff_rev, rev_02:rev_78new, names_to = c("type","Category
     Category == "78new" ~  "ALL OTHER SOURCES" ,
     Category == "79" ~   "COOK COUNTY IGT", #dropped
     Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
+    Category == "TOTALS"~ "Total Revenue",
                  T ~ "Check Me!"
 
   ) )
 
 
-exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
+exp_long <- pivot_longer(ff_exp, exp_402:exp_TOTALS , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
   rename(Year = fy ) %>% 
     filter(Year < 2022) %>%
 
@@ -1377,13 +1385,14 @@ exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Categor
              Category == "959" ~ "K-12 EDUCATION" ,
              Category == "960" ~ "UNIVERSITY EDUCATION",
              Category == "970" ~ "Local Govt Transfers",
+           Category == "TOTALS" ~ "Total Expenditure",
              T ~ "CHECK ME!")
            )
 
  # write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
  # write_csv(rev_long, "revenue_recoded_long_FY22.csv")
 
-aggregated_totals_long <- rbind(rev_long, exp_long) 
+aggregated_totals_long <- rbind(rev_long, exp_long) %>% filter(Category!= "TOTALS")
 aggregated_totals_long
 
 
@@ -1399,11 +1408,130 @@ year_totals <- aggregated_totals_long %>%
 
 year_totals
 
+
+```
+```{r rev-exp-stata-labels, eval=FALSE, include=FALSE}
+
+
+## Stata labels for Francis. 
+## Needed old column names to be identical and in same order.
+
+
+stata_labels_rev <- pivot_longer(ff_rev, rev_02:rev_TOTALS, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(year = fy) %>%
+  filter(year <2022) %>%
+  mutate(Category_name = case_when(
+    Category == "02" ~ "INDIVIDUAL INCOME TAXES, gross of local, net of refunds ($ mil.)" ,
+    Category == "03" ~ "CORPORATE INCOME TAXES, gross of PPRT, net of refunds ($ mil.)" ,
+    Category == "06" ~ "SALES TAXES, gross of local share ($ mil.)" ,
+    Category == "09" ~ "MOTOR FUEL TAX, gross of local share, net of refunds ($ mil.)" ,
+    Category == "12" ~ "PUBLIC UTILITY TAXES, gross of PPRT ($ mil.)" ,
+    Category == "15" ~ "CIGARETTE TAXES ($ mil.)" ,
+    Category == "18" ~ "LIQUOR GALLONAGE TAXES ($ mil.)" ,
+    Category == "21" ~ "INHERITANCE TAX ($ mil.)" ,
+    Category == "24" ~ "INSURANCE TAXES&FEES&LICENSES, net of refunds ($ mil.)" ,
+    Category == "27" ~ "CORP FRANCHISE TAXES & FEES ($ mil.)" ,
+    Category == "30" ~ "HORSE RACING TAXES & FEES",  # in Other
+    Category == "31" ~ "MEDICAL PROVIDER ASSESSMENTS ($ mil.)" ,
+    Category == "32" ~ "GARNISHMENT-LEVIES" , # dropped
+    Category == "33" ~  "LOTTERY RECEIPTS ($ mil.)" ,
+    Category == "35" ~  "OTHER TAXES ($ mil.)" ,
+    Category == "36" ~  "RECEIPTS FROM REVENUE PRODUCNG ($ mil.)", 
+    Category == "39" ~  "LICENSES, FEES & REGISTRATIONS ($ mil.)" ,
+    Category == "42" ~  "MOTOR VEHICLE AND OPERATORS ($ mil.)" ,
+    Category == "45" ~  "STUDENT FEES-UNIVERSITIES",   # dropped
+    Category == "48" ~  "RIVERBOAT WAGERING TAXES ($ mil.)" ,
+    Category == "51" ~  "RETIREMENT CONTRIBUTIONS" , # dropped
+    Category == "54" ~ "GIFTS AND BEQUESTS ($ mil.)", 
+    Category == "57" ~  "FEDERAL OTHER ($ mil.)" ,
+    Category == "58" ~  "FEDERAL MEDICAID ($ mil.)", 
+    Category == "59" ~  "FEDERAL TRANSPORTATION ($ mil.)" ,
+    Category == "60" ~  "OTHER GRANTS AND CONTRACTS", #other
+    Category == "63" ~  "INVESTMENT INCOME", # other
+    Category == "66" ~ "PROCEEDS,INVESTMENT MATURITIES" , #dropped
+    Category == "72" ~ "BOND ISSUE PROCEEDS",  #dropped
+    Category == "75" ~  "INTER-AGENCY RECEIPTS ",  #dropped
+    Category == "76" ~  "TRANSFER IN FROM OUT FUNDS",  #other
+    Category == "78new" ~  "ALL OTHER SOURCES, adjusted ($ mil.)" ,
+    Category == "79" ~   "COOK COUNTY IGT", #dropped
+    Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
+    Category == "TOTALS"~ "Total",
+                 T ~ "Check Me!"
+
+  ) )
+
+stata_labels_rev %>% select(c(-type, -Category)) %>% pivot_wider(names_from = "Category_name", values_from = "Dollars") %>% write_csv("stata_labels_rev.csv")
+
+stata_labels_exp <- pivot_longer(ff_exp, exp_402:exp_TOTALS , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(year = fy ) %>% 
+    filter(year < 2022) %>%
+
+  mutate(Category_name = 
+           case_when(
+             Category == "402" ~ "AGING ($ mil.)" ,
+             Category == "406" ~ "AGRICULTURE ($ mil.)", 
+             Category == "416" ~ "CENTRAL MANAGEMENT ($ mil.)",
+             Category == "418" ~ "CHILDREN AND FAMILY SERVICES ($ mil.)", 
+             Category == "420" ~ "COMMERCE AND ECONOMIC OPPORTUNITY ($ mil.)",
+             Category == "422" ~ "NATURAL RESOURCES ($ mil.)" ,
+             Category == "426" ~ "CORRECTION ($ mil.)S",
+             Category == "427" ~ "EMPLOYMENT SECURITY ($ mil.)" ,
+             Category == "444" ~ "HUMAN SERVICES ($ mil.)" ,
+             Category == "478" ~ "HEALTHCARE & FAM SER NET OF MEDICAID ($ mil.)", 
+             Category == "482" ~ "PUBLIC HEALTH ($ mil.)", 
+             Category == "492" ~ "REVENUE ($ mil.)", 
+             Category == "494" ~ "TRANSPORTATION ($ mil.)" ,
+             Category == "532" ~ "ENVIRONMENTAL PROTECT AGENCY ($ mil.)" ,
+             Category == "557" ~ "IL STATE TOLL HIGHWAY AUTH ($ mil.)" ,
+             Category == "684" ~ "IL COMMUNITY COLLEGE BOARD ($ mil.)", 
+             Category == "691" ~ "IL STUDENT ASSISTANCE COMM ($ mil.)" ,
+             Category == "900" ~ "NOT IN FRAME",
+             Category == "901" ~ "STATE PENSION CONTRIBUTION ($ mil.)",
+             Category == "903" ~ "DEBT SERVICE ($ mil.)",
+             Category == "904" ~ "STATE EMPLOYEE HEALTHCARE ($ mil.)",
+             Category == "910" ~ "LEGISLATIVE ($ mil.)"  ,
+             Category == "920" ~ "JUDICIAL ($ mil.)" ,
+             Category == "930" ~ "ELECTED OFFICERS ($ mil.)" , 
+             Category == "941" ~ "PUBLIC SAFETY ($ mil.)" ,
+         #    Category == "942" ~ "ECON DEVT & INFRASTRUCTURE" ,
+             Category == "944" ~ "BUS & PROFESSION REGULATION ($ mil.)" ,
+             Category == "945" ~ "MEDICAID ($ mil.)" ,
+             Category == "946" ~ "CAPITAL IMPROVEMENT ($ mil.)" , 
+             Category == "948" ~ "OTHER DEPARTMENTS ($ mil.)" ,
+             Category == "949" ~ "OTHER BOARDS & COMMISSIONS ($ mil.)" ,
+             Category == "959" ~ "K-12 EDUCATION ($ mil.)" ,
+             Category == "960" ~ "UNIVERSITY EDUCATION ($ mil.)",
+             Category == "970" ~ "LOCAL GOVT REVENUE SHARE ($ mil.)",
+           Category == "TOTALS" ~ "Total",
+             T ~ "Other")
+           )
+
+
+stata_labels_exp %>% select(-c(type, Category)) %>% pivot_wider(names_from = Category_name, values_from = Dollars) %>% write_csv("stata_labels_exp.csv")
+
+
+ # write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
+ # write_csv(rev_long, "revenue_recoded_long_FY22.csv")
+
+stata_labels_long <- rbind(stata_labels_exp, stata_labels_rev) %>% filter(Category!= "TOTALS")
+stata_labels_long
+
+
+year_totals <- stata_labels_long %>% 
+  group_by(type, year) %>% 
+  summarize(Dollars = sum(Dollars, na.rm = TRUE)) %>% 
+  pivot_wider(names_from = "type", values_from = Dollars) %>% 
+  rename(
+         Expenditures = exp,
+         Revenue = rev) %>%  
+  mutate(Gap = Revenue - Expenditures) %>% arrange(-year)
+# creates variable for the Gap each year
+
+year_totals
+
 #write_csv(aggregated_totals_long, "aggregated_totals_fy2021.csv")
 
 ```
-
-
 
 # Graphs
 
@@ -1450,8 +1578,10 @@ aggregated_totals_long %>%
 ```
 
 
-**Expenditure and revenue amounts in millions of dollars:** 
 ```{r include = FALSE}
+
+### **Expenditure and revenue amounts in millions of dollars:** 
+
 exp_long %>%
   filter(Year == 2021) %>%
   #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
@@ -1513,7 +1643,7 @@ rev_long %>%
 
 ```{r}
 exp_long %>%
-  filter( Year == 2021) %>%
+  filter( Year == 2021 & Category_name != "Total Expenditure") %>%
   mutate(rank = rank(Dollars),
         Category_name = ifelse(rank > 13, Category_name, 'All Other Expenditures')) %>%
  # select(-c(Year, Dollars, rank)) %>%
@@ -1527,9 +1657,9 @@ exp_long %>%
   ylab("Millions of Dollars")
 
 rev_long %>%
-  filter( Year == 2021) %>%
+  filter( Year == 2021 & Category_name != "Total Revenue") %>%
   mutate(rank = rank(Dollars),
-        Category_name = ifelse(rank > 10, Category_name, 'All Other Expenditures')) %>%
+        Category_name = ifelse(rank > 10, Category_name, 'All Other Revenues')) %>%
  # select(-c(Year, Dollars, rank)) %>%
   arrange(desc(Dollars)) %>%
   ggplot() + 
@@ -1617,8 +1747,6 @@ cagr23_precovid <- exp_long %>%
   calc_cagr(21) %>% 
   summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
 
-
-
 cagr_10 <- calc_cagr(exp_long, 10) %>% 
   filter(Year == 2021) %>%
   summarize(cagr_10 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
@@ -1639,14 +1767,12 @@ cagr_1 <- calc_cagr(exp_long, 1) %>%
   filter(Year == 2021) %>%
   summarize(cagr_1 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-CAGR_expenditures_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23 ) %>% 
+CAGR_expenditures_summary_allcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23 ) %>% 
   select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
   rename("Expenditure Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"23 Year CAGR" = cagr_23 )
 
-CAGR_expenditures_summary
+CAGR_expenditures_summary_allcats
 
-# to have it as a csv, uncomment the line below
-# write_csv(CAGR_expenditures_summary, "CAGR_expenditures_summary.csv")
 ```
 
 ```{r CAGR-revenues}
@@ -1684,14 +1810,11 @@ cagr_2 <- calc_cagr(rev_long, 2) %>%
   filter(Year == 2021) %>%
   summarize(cagr_1 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-CAGR_revenue_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23) %>%   
+CAGR_revenue_summary_allcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23) %>%   
   select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
   rename("Revenue Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"23 Year CAGR" = cagr_23 )
 
-CAGR_revenue_summary
-
-# to have it as a csv, uncomment the line below
-# write_csv(CAGR_revenue_summary, "CAGR_revenue_summary.csv")
+CAGR_revenue_summary_allcats
 
 rm(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23) # removes objects from computer memory
 ```
@@ -1713,12 +1836,10 @@ Another way to examine expenditure and revenue change over time is to use a lag 
 
 # Change from Previous Year
 
-> Final column not done yet
-> Does not have a "Totals" row for table
 
 ```{r }
 
-revenue_change <- rev_long %>%
+revenue_change_allcats <- rev_long %>%
   select(-c(type,Category)) %>%
   filter(Year > 2019) %>%
   pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
@@ -1726,29 +1847,29 @@ revenue_change <- rev_long %>%
     "FY 2021 Revenues ($ billions)" = round(Dollars_2021/1000, digits = 1),
 #    "Change from 2020 to 2021" = round(Dollars_2021 - Dollars_2020, digits = 2),
          "Percent Change from 2020 to 2021" = round(((Dollars_2021 -Dollars_2020)/Dollars_2020*100), digits = 2)) %>%
-  left_join(CAGR_revenue_summary, by = c("Category_name" = "Revenue Category")) %>% 
+  left_join(CAGR_revenue_summary_allcats, by = c("Category_name" = "Revenue Category")) %>% 
     arrange(-`FY 2021 Revenues ($ billions)`)%>%
   #select(-c(Dollars_2020, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`)) %>%
   rename( "Compound Annual Growth, 1998-2021*" = `23 Year CAGR`, 
           "FY2021 Revenue Category" = Category_name ) %>%
-  select(-c(Dollars_2020, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`)) 
+  select(-c(Dollars_2020, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`))
 
-revenue_change
+revenue_change_allcats
 
-expenditure_change <- exp_long %>%
+expenditure_change_allcats <- exp_long %>%
   select(-c(type,Category)) %>%
   filter(Year > 2019) %>%
   pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
   mutate("FY 2021 Expenditures ($ billions)" = round(Dollars_2021/1000, digits = 1),
   #  "Change from 2020 to 2021" = Dollars_2021 - Dollars_2020,
          "Percent Change from 2020 to 2021" = round((Dollars_2021 -Dollars_2020)/Dollars_2020*100, digits = 2) )%>%
-  left_join(CAGR_expenditures_summary, by = c("Category_name" = "Expenditure Category")) %>% 
+  left_join(CAGR_expenditures_summary_allcats, by = c("Category_name" = "Expenditure Category")) %>% 
   arrange(-`FY 2021 Expenditures ($ billions)`)%>%
   select(-c(Dollars_2020, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`)) %>%
   rename( "Compound Annual Growth, 1998-2021*" = `23 Year CAGR`, 
-          "FY2021 Expenditure Category" = Category_name )
+          "FY2021 Expenditure Category" = Category_name ) 
 
-expenditure_change
+expenditure_change_allcats
            
 ```
 
@@ -1758,9 +1879,9 @@ expenditure_change
 
 Wide tables for summary file:
 ```{r wide-summary-tables}
-revenue_wide <- pivot_longer(ff_rev, rev_02:rev_78new, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+revenue_wide <- pivot_longer(ff_rev, rev_02:rev_TOTALS, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
   rename(Year = fy) %>%
- # filter(Year <2022) %>%
+  filter(Year <2022) %>%
   mutate(Category_name = case_when(
     Category == "02" ~ "Income Tax" ,
     Category == "03" ~ "Corporate Income Tax" ,
@@ -1796,9 +1917,14 @@ revenue_wide <- pivot_longer(ff_rev, rev_02:rev_78new, names_to = c("type","Cate
    # Category == "78new" ~  "ALL OTHER SOURCES" ,
    # Category == "79" ~   "COOK COUNTY IGT", #dropped
  #   Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
-                 T ~ "Other Revenue Sources **"
+                
+Category == "TOTALS" ~ "Total Revenue",
+T ~ "Other Revenue Sources **"
 
-  ) ) %>% select(-type, -Category) %>% group_by(Year, Category_name) %>% summarise(Dollars= round(sum(Dollars),digits=2))
+  ) ) %>% 
+  select(-type, -Category) %>% 
+  group_by(Year, Category_name) %>%
+  summarise(Dollars= round(sum(Dollars),digits=2)) 
 
 revenue_wide
 
@@ -1807,17 +1933,18 @@ revenue_wide
 
 ```{r wide-summary-tables2}
 revenue_wide2 <- revenue_wide %>% pivot_wider(names_from = Category_name, 
-              values_from = Dollars)
+              values_from = Dollars) %>%
+  relocate("Other Revenue Sources **", .after = last_col()) %>%
+  relocate("Total Revenue", .after =  last_col())
 
 revenue_wide2
 
-revenue_wide %>% pivot_wider(names_from = Year, 
-              values_from = Dollars)
+revenue_wide %>% pivot_wider(names_from = Year, values_from = Dollars) %>% select(Category_name, '2021')
 ```
 
 
 ```{r wide-summary-table-expenditure}
-expenditure_wide <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
+expenditure_wide <- pivot_longer(ff_exp, exp_402:exp_TOTALS , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
   rename(Year = fy ) %>% 
     filter(Year < 2022) %>%
 
@@ -1859,16 +1986,20 @@ expenditure_wide <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", 
              Category == "959" ~ "K-12 Education" ,
            #  Category == "960" ~ "UNIVERSITY EDUCATION",
              Category == "970" ~ "Local Government Revenue Sharing",
+          Category == "TOTALS" ~ "Total Expenditure",
              T ~ "All Other Expenditures **")
            ) %>% 
-  select(-type, -Category) %>% group_by(Year, Category_name) %>% summarise(Dollars= round(sum(Dollars),digits=2))
+  select(-type, -Category) %>% 
+  group_by(Year, Category_name) %>% 
+  summarise(Dollars= round(sum(Dollars),digits=2))
 
 expenditure_wide
- # write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
- # write_csv(rev_long, "revenue_recoded_long_FY22.csv")
 
-expenditure_wide2 <- expenditure_wide%>% pivot_wider(names_from = Category_name, 
-              values_from = Dollars)
+expenditure_wide2 <- expenditure_wide%>% 
+  pivot_wider(names_from = Category_name, 
+              values_from = Dollars) %>%
+  relocate("All Other Expenditures **", .after = last_col()) %>%
+  relocate("Total Expenditure", .after =  last_col())
 
 expenditure_wide2
 
@@ -1877,6 +2008,161 @@ expenditure_wide %>% pivot_wider(names_from = Year,
 
 ```
 
+```{r }
+calc_cagr <- function(df, n) {
+  df <- revenue_wide %>%
+    arrange(Category_name, Year) %>%
+    group_by(Category_name) %>%
+    mutate(cagr = ((`Dollars` / lag(`Dollars`, n)) ^ (1 / n)) - 1)
+
+  return(df)
+}
+
+cagr_23 <- calc_cagr(revenue_wide, 23) %>% 
+  summarize(cagr_23 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+revenue_change2 <- revenue_wide %>%
+  filter(Year > 2019) %>%
+  pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
+  mutate(
+    "FY 2021 Revenues ($ billions)" = round(Dollars_2021/1000, digits = 1),
+#    "Change from 2020 to 2021" = round(Dollars_2021 - Dollars_2020, digits = 2),
+         "Percent Change from 2020 to 2021" = round(((Dollars_2021 -Dollars_2020)/Dollars_2020*100), digits = 2)) %>%
+  left_join(cagr_23) %>% 
+    arrange(-`FY 2021 Revenues ($ billions)`)%>%
+  #select(-c(Dollars_2020, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`)) %>%
+  rename( "Compound Annual Growth, 1998-2021*" = `cagr_23`, 
+          "FY2021 Revenue Category" = Category_name ) %>%
+  select(-c(Dollars_2020, Dollars_2021,)) 
+
+revenue_change2
+
+
+# Do same thing for expenditures:
+
+calc_cagr <- function(df, n) {
+  df <- expenditure_wide %>%
+    arrange(Category_name, Year) %>%
+    group_by(Category_name) %>%
+    mutate(cagr = ((`Dollars` / lag(`Dollars`, n)) ^ (1 / n)) - 1)
+
+  return(df)
+}
+
+cagr_23 <- calc_cagr(expenditure_wide, 23) %>% 
+  summarize(cagr_23 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+expenditure_change2 <- expenditure_wide %>%
+  filter(Year > 2019) %>%
+  pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
+  mutate("FY 2021 Expenditures ($ billions)" = round(Dollars_2021/1000, digits = 1),
+  #  "Change from 2020 to 2021" = Dollars_2021 - Dollars_2020,
+         "Percent Change from 2020 to 2021" = round((Dollars_2021 -Dollars_2020)/Dollars_2020*100, digits = 2) )%>%
+  left_join(cagr_23) %>% 
+  arrange(-`FY 2021 Expenditures ($ billions)`)%>%
+  select(-c(Dollars_2020, Dollars_2021)) %>%
+  rename( "Compound Annual Growth, 1998-2021*" = `cagr_23`, 
+          "FY2021 Expenditure Category" = Category_name) 
+
+expenditure_change2
+           
+```
+
+```{r CAGR-expenditures2}
+ 
+# function for calculating the CAGR
+calc_cagr <- function(df, n) {
+  df <- expenditure_wide %>%
+    arrange(Category_name, Year) %>%
+    group_by(Category_name) %>%
+    mutate(cagr = ((`Dollars` / lag(`Dollars`, n)) ^ (1 / n)) - 1)
+
+  return(df)
+}
+
+# This works for one variable at a time
+cagr_23 <- calc_cagr(expenditure_wide, 23) %>% 
+  # group_by(Category) %>%
+  summarize(cagr_23 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr23_precovid <- expenditure_wide %>%
+  filter(Year <= 2019) %>%
+  calc_cagr(21) %>% 
+  summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+
+
+cagr_10 <- calc_cagr(expenditure_wide, 10) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_10 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_5 <- calc_cagr(expenditure_wide, 5) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_5 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_3 <- calc_cagr(expenditure_wide, 3) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_3 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_2 <- calc_cagr(expenditure_wide, 2) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_2 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_1 <- calc_cagr(expenditure_wide, 1) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_1 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+CAGR_expenditures_summary_majorcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23 ) %>% 
+  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
+  rename("Expenditure Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"23 Year CAGR" = cagr_23 )
+
+CAGR_expenditures_summary_majorcats
+
+```
+
+```{r CAGR-revenues2}
+  
+calc_cagr <- function(df, n) {
+  df <- revenue_wide %>%
+    arrange(Category_name, Year) %>%
+    group_by(Category_name) %>%
+    mutate(cagr = ((Dollars / lag(Dollars, n)) ^ (1 / n)) - 1)
+
+  return(df)
+}
+
+# This works for one variable at a time
+cagr_23 <- calc_cagr(revenue_wide, 23) %>% 
+  summarize(cagr_23 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr_10 <- calc_cagr(revenue_wide, 10) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_10 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_5 <- calc_cagr(revenue_wide, 5) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_5 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_3 <- calc_cagr(revenue_wide, 3) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_3 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_2 <- calc_cagr(revenue_wide, 2) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_2 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+ cagr_1 <- calc_cagr(revenue_wide, 1) %>% 
+  filter(Year == 2021) %>%
+  summarize(cagr_1 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+CAGR_revenue_summary_majorcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23) %>%   
+  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
+  rename("Revenue Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"23 Year CAGR" = cagr_23 )
+
+CAGR_revenue_summary_majorcats
+
+rm(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23) # removes objects from computer memory
+```
 
 
 Saves main items in one excel file named `summary_file.xlsx`. Delete `eval=FALSE` to run on local computer.
@@ -1885,13 +2171,21 @@ Saves main items in one excel file named `summary_file.xlsx`. Delete `eval=FALSE
 #install.packages("openxlsx")
 library(openxlsx)
 
-dataset_names <- list('Aggregate Revenues' = revenue_wide2, 'Aggregate Expenditures' = expenditure_wide2, 
-                      'rev_long' = rev_long, 'exp_long' = exp_long, 
-                      'Table 1' = expenditure_change, 'Table 2' = revenue_change,
-                      'Table 4.a' = CAGR_revenue_summary, 'Table 4.b' = CAGR_expenditures_summary, 
+dataset_names <- list('Aggregate Revenues' = revenue_wide2, 
+                      'Aggregate Expenditures' = expenditure_wide2, 
+                      'rev_long' = rev_long, 
+                      'exp_long' = exp_long, 
+                      'Table 1-AllCats' = expenditure_change_allcats, 
+                      'Table 2-AllCats' = revenue_change_allcats,
+                      'Table 1' = expenditure_change2, 
+                      'Table 2' = revenue_change2,
+                      'Table 4.a' = CAGR_revenue_summary_majorcats, 
+                      'Table 4.b' = CAGR_expenditures_summary_majorcats, 
+                      'Table 4.a-AllCats' = CAGR_revenue_summary_allcats, 
+                      'Table 4.b-AllCats' = CAGR_expenditures_summary_allcats, 
                       'year_totals' = year_totals)
 
-#write.xlsx(dataset_names, file = 'summary_file_AWM_v5.xlsx')
+#write.xlsx(dataset_names, file = 'summary_file_AWM_Oct10v2.xlsx')
 ```
 
 
