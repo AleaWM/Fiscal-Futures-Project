@@ -50,6 +50,36 @@ Expenditure File:
 - 708 Funds  
 - 107 Agencies - 98 Division Numbers, 313 Division names  
 
+```{r inspect-newdata, eval=FALSE, include=FALSE}
+revenue_fy22 <- read_xlsx("Fis_Fut_Rev_2022.xlsx") %>% 
+  rename(fy = 'FISCAL YEAR',
+         fund = 'FUND #',
+         fund_name = 'FUND NAME',
+         agency = 'AGENCY #',
+         agency_name = 'AGENCY NAME',
+         source = 'REVENUE SOURCE #',
+         source_name = 'REV SRC NAME',
+         receipts = 'REVENUE YTD AMOUNT'
+  ) 
+
+revenue_fy22 %>% group_by(rev_type, fy) %>% summarize(revenue = sum(receipts) )%>% pivot_wider(names_from = fy, values_from = revenue)
+
+
+exp_fy22 <- read_xlsx("Fis_Fut_Exp_2022.xlsx") %>% 
+  rename(fy = 'FISCAL YEAR',
+         fund = 'FUND #',
+         fund_name = 'FUND NAME',
+         agency = 'AGENCY #',
+         agency_name = 'AGENC .NAME',
+         appr_org = 'DIVISION',
+         org_name = 'DIVISION NAME',
+         obj_seq_type = 'APPROPRIATION #',
+         wh_approp_name = 'APPROPRIATION NAME',
+         exp_net_xfer = 'NET OF TRANS AMOUNT',
+         expenditure = 'EXPENDED THRU 7/26/22'
+  ) 
+
+```
 
 # Variables
 
@@ -139,8 +169,8 @@ For FY 2022 and after, .dta files can be avoided entirely and .csv files and R c
 
 Example code below: Read in excel file and rename columns so that it plays well with the other years' files.
 
-```{r rename-variables, eval=FALSE}
-read_xlsx("Fis_Fut_Rev_2022.xlsx") %>% 
+```{r rename-variables}
+revenue_fy22 <- read_xlsx("Fis_Fut_Rev_2022.xlsx") %>% 
   rename(fy = 'FISCAL YEAR',
          fund = 'FUND #',
          fund_name = 'FUND NAME',
@@ -149,31 +179,30 @@ read_xlsx("Fis_Fut_Rev_2022.xlsx") %>%
          source = 'REVENUE SOURCE #',
          source_name = 'REV SRC NAME',
          receipts = 'REVENUE YTD AMOUNT'
-  ) %>%
-  # do these come from funds_ab_whatever file?
-  mutate(fund_cat = FIND_COLUMN, #create fund_cat column
-         fund_cat_name = FIND_NAME) # create fund_cat_name column
+  ) 
 
-read_xlsx("Fis_Fut_Exp_2022.xlsx") %>% 
+exp_fy22 <- read_xlsx("Fis_Fut_Exp_2022.xlsx") %>% 
   rename(fy = 'FISCAL YEAR',
          fund = 'FUND #',
          fund_name = 'FUND NAME',
          agency = 'AGENCY #',
-         agency_name = 'AGENCY NAME',
+         agency_name = 'AGENC .NAME',
          appr_org = 'DIVISION',
          org_name = 'DIVISION NAME',
          obj_seq_type = 'APPROPRIATION #',
          wh_approp_name = 'APPROPRIATION NAME',
          exp_net_xfer = 'NET OF TRANS AMOUNT',
-         expenditure = 'EXPENDED THRI 7/26/22'
-  ) %>%
-  # do these come from funds_ab_whatever file?
-  mutate(data_source = "exp IOC Aug 2022",
-         object = ,
-         seq = ,
-         type = ,
-         fund_cat = FIND_COLUMN, #create fund_cat column
-         fund_cat_name = FIND_NAME) # create fund_cat_name column
+         expenditure = 'EXPENDED THRU 7/26/22'
+  ) 
+# 
+# %>%
+#   # do these come from funds_ab_whatever file?
+#   mutate(data_source = "exp IOC Aug 2022",
+#          object = ,
+#          seq = ,
+#          type = ,
+#          fund_cat = FIND_COLUMN, #create fund_cat column
+#          fund_cat_name = FIND_NAME) # create fund_cat_name column
 
 ```
 
@@ -470,14 +499,14 @@ exp_temp <- anti_join(exp_temp, transfers_drop)
 State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employee contributions are not considered a revenue source or an expenditure in our analysis.
 
 
-Fund = 0457 is "Group insurance premium", in_ff = 1
-Fund = 0193 is "Local govt health insurance reserve", in=ff = 0
-fund = 0477 is "Community College Health Insurance", in=ff = 0.   
-- had large amount in early years
-Fund = 0907 = health insurance reserve, in_ff = 1
-Fund = 9939 is "group self-insurers' insolv", in_ff = 1
-Fund = 0940 is Self-Insurers security, in_ff = 0
-Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1
+Fund = 0457 is "Group insurance premium", in_ff = 1  
+Fund = 0193 is "Local govt health insurance reserve", in=ff = 0  
+fund = 0477 is "Community College Health Insurance", in=ff = 0.     
+- had large amount in early years  
+Fund = 0907 = health insurance reserve, in_ff = 1  
+Fund = 9939 is "group self-insurers' insolv", in_ff = 1  
+Fund = 0940 is Self-Insurers security, in_ff = 0  
+Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1   
 
 Employer contributions for group insurance are excluded to avoid double counting the cost of healthcare.
 
@@ -486,7 +515,7 @@ All employer contributions are coded as object = 1180.
 - eehc = 0 means it is NOT a state healthcare cost but it is an employer contribution of some type to some fund   
 - eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance
 
-```{r healthcare-employee-contributions, eval=FALSE, include = FALSE}
+```{r healthcare-employer-contributions, eval=FALSE, include = FALSE}
 
 # examine group insurance totals per year
 group_ins <- exp_temp %>% 
@@ -504,7 +533,7 @@ group_ins <- exp_temp %>%
 healthcare_costs <- exp_temp %>% 
   mutate(eehc = ifelse(
     # group insurance contributions for 1998-2005 and 2013-present
-   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) )%>% 
+   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) ) %>% 
   mutate(eehc = ifelse(
     # group insurance contributions for 2006-2012
     fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
@@ -544,7 +573,13 @@ exp_temp <- exp_temp %>%
   mutate(eehc = ifelse(
     # group insurance contributions for 2006-2012
     fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
+     # group insurance contributions from road fund
+  # coded with 1900 for some reason??
+    mutate(eehc = ifelse(
+      fund == "0011" & object == "1900" & agency == "416" & appr_org=="20", 0, eehc) ) %>%
+  
   mutate(expenditure = ifelse(eehc=="0", 0, expenditure)) %>%
+  
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
       fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management Bureau of benefits using health insurance reserve 
       fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services using health insurance reserve - stopped using this in 2012
@@ -560,7 +595,7 @@ healthcare_costs <- exp_temp %>% filter(group == "904")
 healthcare_costs %>% group_by(fy) %>% summarise(healthcare_cost = sum(expenditure)) %>% arrange(-fy)
 
 
-exp_temp <- anti_join(exp_temp, healthcare_costs)
+exp_temp <- anti_join(exp_temp, healthcare_costs) %>% mutate(expenditure = ifelse(object == "1180", 0, expenditure))
 
 healthcare_costs_yearly <- healthcare_costs %>% group_by(fy, group) %>% summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)/1000000) %>% select(-group)
 
@@ -574,7 +609,7 @@ healthcare_costs_yearly <- healthcare_costs %>% group_by(fy, group) %>% summaris
 
 Separate transfers to local from parent agencies that come from DOR(492) or Transportation (494). Treats muni revenue transfers as expenditures, not negative revenue.
 
-The share of certain taxes levied state-wide at a common rate and then transferred to local governments. (Purely local-option taxes levied by specific local governments with the state acting as collection agent are not included.)
+The share of certain taxes levied state-wide at a common rate and then transferred to local governments. (Purely local-option taxes levied by specific local governments with the state acting as collection agent are NOT included.)
 
 The five corresponding revenue items are:  
 
@@ -583,7 +618,7 @@ The five corresponding revenue items are:
 • Personal Property Replacement Tax on Business Income  
 • Personal Property Replacement Tax on Public Utilities  
 • Local share of Motor Fuel Tax 
-  - Transportation Renewal Fund 0952
+  - Transportation Renewal Fund 0952  
 
 > Completed: Add the mft mentioned in GOMB email to code
 
@@ -968,6 +1003,9 @@ rev_temp <- rev_temp %>%
     TRUE ~ (as.character(agency)))) 
 ```
 
+
+### Federal to State Transfers
+
 ```{r create-rev-federal-transfers}
 rev_temp <- rev_temp %>% 
   mutate(
@@ -982,7 +1020,8 @@ rev_temp <- rev_temp %>%
 
 rev_temp %>% 
   group_by(fy, rev_type_name) %>% 
-  summarise(receipts = sum(receipts, na.rm = TRUE)/1000000) %>% pivot_wider(names_from = rev_type_name, values_from = receipts)
+  summarise(receipts = sum(receipts, na.rm = TRUE)/1000000) %>% 
+  pivot_wider(names_from = rev_type_name, values_from = receipts)
 ```
 
 ### Pension Contributions
@@ -1050,7 +1089,7 @@ rev_temp <- rev_temp %>%
       fund == "0392" |fund == "0723" ~ "39", # licenses and fees
       fund == "0656" ~ "78", #all other rev sources
       TRUE ~ as.character(rev_type)))
-#if not mentioned, then rev_type as it was
+# if not mentioned, then rev_type as it was
 
 
 
@@ -1072,39 +1111,30 @@ rev_temp <- rev_temp %>% filter(med_option_recent != 1)
 
 ```
 
-Still need to add med_option data to Other Revenues
+You must then subtract the employee premiums from the state healthcare expenditures totals. Employee premiums on the revenue side should have receipts coded as $0 or be dropped using anti_join(). 
 
-Transfers in and Out: 
-in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")
 
-SPORTS FACILITIES TAX TRUST
-REPLACEMENT VEHICLE TAX-ST
-EASTERN ILLINOIS UNIVERSITY
-GOVERNOR'S STATE UNIVERSITY
-NORTHEASTERN ILLINOIS UNIV
-WESTERN ILLINOIS UNIVERSITY 1579
-SOUTHERN ILLINOIS UNIVERSITY 1580
-UNIVERSITY OF ILLINOIS 1581
-PUBLIC BUILDING FUND 1582
-DRYCLEANER TRUST FUND
-LOCAL DEBT SERVICE ACCT 1745
-STATE EMPLOY RETIREMENT SYSTEM 1982
-CHILD SUPPORT ENFORCE TRUST
-PROTEST FUND
+### Transfers in and Out: 
 
 **I don't have much faith in the transfers in and out steps- AWM**
 
-```{r step-3.8}
+I am currently choosing to exclude the totals from this step. Overall, this decreases the total revenues in "All Other Revenues" by a few million dollars.
 
+- in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")   
+- See the methodology document for the list of what these sources/funds are. 
+
+
+```{r step-3.8}
 rev_temp <- rev_temp %>% 
   filter(in_ff == 1) %>% 
-  mutate(local = ifelse(is.na(local), 0, local)) %>%
+  mutate(local = ifelse(is.na(local), 0, local)) %>% # drops all revenue observations that were coded as "local == 1"
   filter(local != 1)
 
 # 1175 doesnt exist?
 in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")
 
 # what does this actually include:
+# all are items with rev_type = 75 originally. 
 in_out_df <- rev_type %>%
   mutate(infromout = ifelse(source %in% in_from_out, 1, 0)) %>%
   filter(infromout == 1)
@@ -1112,7 +1142,10 @@ in_out_df <- rev_type %>%
 rev_temp <- rev_temp %>% 
   mutate(rev_type_new = ifelse(source %in% in_from_out, "76", rev_type))
 # if source contains any of the codes in in_from_out, code them as 76 (all other rev).
+```
 
+
+```{r droprevtypes}
 # revenue types to drop
 drop_type <- c("32", "45", "51", 
                "66", "72", "75", "79", "98")
@@ -1163,6 +1196,9 @@ rm(exp_1998_2022)
 
 ## Revenues
 
+I chose to drop rev_76 for Transfers in and Out because I do not understand why that step occurs. If I keep rev_76 in and include it in rev_78 for All Other Revenues, then the difference between R and Stata code should be resolved.  
+  - after Stata code is edited to drop employee insurance premium revenue from all other revenues. Currently it keeps it in AND subtracts it from state healthcare expenditures.  
+
 ```{r final-ffrev-table}
 ff_rev <- rev_temp %>% 
   group_by(rev_type_new, fy) %>% 
@@ -1188,7 +1224,7 @@ ff_rev <- ff_rev %>%
 
          rev_78new = rev_78 #+ pension_amt #+ eehc
          ) %>% 
-  select(-c(ref_02:ref_35, rev_76, rev_78, rev_99, rev_NA#, pension_amt
+  select(-c(ref_02:ref_35, rev_78, rev_99, rev_NA, rev_76#, pension_amt , rev_76,
           #  , eehc
             ))
 
@@ -1278,6 +1314,8 @@ ff_exp <- exp_temp %>%
 ff_exp<- ff_exp %>% select(-c(exp_901, med_option_amt_recent, debt_cost, healthcare_cost, pension_rev_sum, exp_971:exp_976)) # drop unwanted columns
 ff_exp
 ```
+
+
 ```{r final-table-with-labels, include = FALSE, eval=FALSE}
 
 exp_temp %>%
@@ -1774,7 +1812,7 @@ dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long,
                       'Table 4.a' = CAGR_revenue_summary, 'Table 4.b' = CAGR_expenditures_summary, 
                       'year_totals' = year_totals)
 
-write.xlsx(dataset_names, file = 'summary_file_FY2022.xlsx')
+#write.xlsx(dataset_names, file = 'summary_file_FY2022.xlsx')
 ```
 
 

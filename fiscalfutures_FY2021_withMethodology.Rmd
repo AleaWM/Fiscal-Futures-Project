@@ -1,4 +1,13 @@
 ---
+title: "FY2021 Analysis - Methodology for Fiscal Futures "
+author: "Alea Wilbur"
+date: "October 2022"
+output:
+  pdf_document: default
+  toc: yes
+---
+
+```{r eval = FALSE, include=FALSE}
 title: "FY2022 Analysis - Methodology for Fiscal Futures "
 author: "Alea Wilbur"
 date: "October 2022"
@@ -8,7 +17,7 @@ output:
     toc: yes
     toc_float: yes
     df_print: paged
----
+```
 
 
 ```{r warning = FALSE, message=FALSE, include=FALSE}
@@ -131,7 +140,7 @@ For FY 2022 and after, .dta files can be avoided entirely and .csv files and R c
 Example code below: Read in excel file and rename columns so that it plays well with the other years' files.
 
 ```{r rename-variables, eval=FALSE}
-read_xlsx("Fis_Fut_Rev_2022.xlsx") %>% 
+read_xlsx("Fis_Fut_Rev_2021.xlsx") %>% 
   rename(fy = 'FISCAL YEAR',
          fund = 'FUND #',
          fund_name = 'FUND NAME',
@@ -233,18 +242,18 @@ exp_1998_2022 <- allexpfiles %>%
 
 
 ```{r create-exp_temp, warning = FALSE, message = FALSE}
-funds_ab_in_2022 = readxl::read_excel("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/funds_ab_in_2022.xlsx")
+funds_ab_in_2021 = readxl::read_excel("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/funds_ab_in_2022.xlsx")
 
 
 exp_temp <- exp_1998_2022 %>% 
   arrange(fund, fy) %>%
   filter(expenditure != 0) %>% # keeps everything that is not zero
 # join  funds_ab_in_2021  to exp_temp
- left_join(funds_ab_in_2022, by = "fund")  # matches most recent fund number 
+ left_join(funds_ab_in_2021, by = "fund")  # matches most recent fund number 
 
 ```
 
-- the initial combined years of data are saved as dataframes named `exp_1998_2022` and `rev_1998_2022`. These are then saved as exp_temp and rev_temp while recoding variables. This is BEFORE category groups are created and cleaned below. Only a temporary file, do not use for analysis. 
+- the initial combined years of data are saved as dataframes named `exp_1998_2021` and `rev_1998_2021`. These are then saved as exp_temp and rev_temp while recoding variables. This is BEFORE category groups are created and cleaned below. Only a temporary file, do not use for analysis. 
 
 
 ```{r remove-all_obs_df, include=FALSE}
@@ -260,8 +269,8 @@ exp_temp <- exp_temp %>%
   mutate(agency = case_when(
     (agency=="438"| agency=="475" |agency == "505") ~ "440",
     # financial institution &  professional regulation &
-     # banks and real estate  --> coded as  financial and professional reg
-    agency == "473" ~ "588", # nuclear safety moved into IEMA
+     # banks and real estate  --> coded as  Business and Professional regulation
+    agency == "473" ~ "588", # nuclear safety moved into IEMA --> Public Safety
     (agency =="531" | agency =="577") ~ "532", # coded as EPA
     (agency =="556" | agency == "538") ~ "406", # coded as agriculture
     agency == "560" ~ "592", # IL finance authority (fire trucks and agriculture stuff)to state fire marshal
@@ -903,10 +912,38 @@ Note that these are the raw figures BEFORE we take the additional steps:
 # Modify  Revenue data
 
 
+Included: 
+
+2. Individual Income Tax
+3. Corp. Income Tax
+6. Sales Tax
+9. Motor Fuel Tax.
+12. Public Utility Taxes
+15. Cigarette Taxes
+18. Liquor Gallonage Taxes
+21.. Inheritance Tax
+24. Insurance Taxes & Fees & Licenses
+27. Corp. Franchise Taxes and Fees
+28. Medical Cannabis
+29. Recreational Cannabis
+30. Horse Racing Taxes & Fees
+31. Medical Assessments
+32. Garnishment - Levies
+33. Lottery Receipts
+35. Other Taxes
+36. Receipts from Revenue Producing
+39. Licenses, Fees, and Registrations
+
+Created:
+57. Federal
+58. Federal
+59. Federal
+
+
 Revenue Categories not included in Fiscal Futures:   
 - 32.  Garnishment-Levies.  (State is fiduciary, not beneficiary.)  
 - 45.  Student Fees-Universities.  (Excluded from state-level budget.)  
-- 51.  Retirement Contributions (of individuals and non-state entities).    
+- 51.  Retirement Contributions (of ~~individuals~~ and non-state entities).    
 - 66.  Proceeds, Investment Maturities.  (Not sustainable flow.)  
 - 72.  Bond Issue Proceeds.  (Not sustainable flow.)   
 - 75.  Inter-Agency Receipts.  (Except from Funds excluded from Fiscal Futures)  
@@ -929,7 +966,7 @@ You need to update the funds_ab_in and ioc_source_type file every year!
 
 ```{r create-rev-temp, warning = FALSE, message=FALSE}
 # fund info to revenue for all years
-rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source)
+rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2021, by = "fund") %>% arrange(source)
 
 # need to update the ioc_source_type file every year! 
 ioc_source_type <- readxl::read_xlsx("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/ioc_source_updated22_AWM.xlsx")
@@ -959,8 +996,10 @@ rev_temp <- rev_temp %>%
   mutate(
     rev_type = ifelse(rev_type=="57" & agency=="478" & (source=="0618"|source=="2364"|source=="0660"|source=="1552"| source=="2306"| source=="2076"|source=="0676"|source=="0692"), "58", rev_type),
     rev_type_name = ifelse(rev_type=="58", "FEDERAL TRANSPORTATION", rev_type_name),
+    
     rev_type = ifelse(rev_type=="57" & agency=="494", "59", rev_type),
     rev_type_name = ifelse(rev_type=="59", "FEDERAL TRANSPORTATION", rev_type_name),
+    
     rev_type_name = ifelse(rev_type=="57", "FEDERAL OTHER", rev_type_name),
     rev_type = ifelse(rev_type=="6", "06", rev_type),
     rev_type = ifelse(rev_type=="9", "09", rev_type)) 
@@ -1732,6 +1771,11 @@ cagr23_precovid <- exp_long %>%
   calc_cagr(21) %>% 
   summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
 
+cagr23_midcovid <- exp_long %>%
+  filter(Year <= 2019) %>%
+  calc_cagr(21) %>% 
+  summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
+
 cagr_10 <- calc_cagr(exp_long, 10) %>% 
   filter(Year == 2021) %>%
   summarize(cagr_10 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
@@ -1938,7 +1982,7 @@ expenditure_wide <- pivot_longer(ff_exp, exp_402:exp_TOTALS , names_to = c("type
            #  Category == "406" ~ "AGRICULTURE", 
              Category == "416" ~ "Central Management",
             # Category == "418" ~ "CHILDREN AND FAMILY SERVICES", 
-             Category == "420" ~ "Commerce & Economic Opportunity",
+             Category == "420" ~ "Community Development",
            #  Category == "422" ~ "NATURAL RESOURCES" ,
             # Category == "426" ~ "CORRECTIONS",
            #  Category == "427" ~ "EMPLOYMENT SECURITY" ,
@@ -1969,7 +2013,7 @@ expenditure_wide <- pivot_longer(ff_exp, exp_402:exp_TOTALS , names_to = c("type
             # Category == "949" ~ "OTHER BOARDS & COMMISSIONS" ,
              Category == "959" ~ "K-12 Education" ,
            #  Category == "960" ~ "UNIVERSITY EDUCATION",
-             Category == "970" ~ "Local Government Revenue Sharing",
+             Category == "970" ~ "Local Govt Revenue Sharing",
           Category == "TOTALS" ~ "Total Expenditure",
              T ~ "All Other Expenditures **")
            ) %>% 
@@ -2009,13 +2053,21 @@ calc_cagr <- function(df, n) {
 }
 
 cagr_23 <- calc_cagr(expenditure_wide, 23) %>% 
-  # group_by(Category) %>%
+    filter(Year == 2021) %>% # keeps cagr calculations for fy2021 only, the rest are NAs
   summarize(cagr_23 = round(sum(cagr*100, na.rm = TRUE), 2))
 
-cagr23_precovid <- expenditure_wide %>%
-  filter(Year <= 2019) %>%
-  calc_cagr(21) %>% 
-  summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr22_midcovid <- expenditure_wide %>% 
+  filter(Year <=2020) %>%
+  calc_cagr(22) %>%
+  filter(Year == 2020) %>%
+  summarize(cagr_22 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr21_precovid <- expenditure_wide %>% 
+  filter( Year <=2019) %>% 
+  calc_cagr(21) %>%
+ filter(Year == 2019) %>%
+  summarize(cagr_21 = case_when(Year == 2019 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
 cagr_10 <- calc_cagr(expenditure_wide, 10) %>% 
   filter(Year == 2021) %>%
@@ -2026,7 +2078,7 @@ cagr_5 <- calc_cagr(expenditure_wide, 5) %>%
   summarize(cagr_5 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
 cagr_3 <- calc_cagr(expenditure_wide, 3) %>% 
-  filter(Year == 2021) %>%
+ filter(Year == 2021) %>%
   summarize(cagr_3 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
 cagr_2 <- calc_cagr(expenditure_wide, 2) %>% 
@@ -2037,11 +2089,16 @@ cagr_1 <- calc_cagr(expenditure_wide, 1) %>%
   filter(Year == 2021) %>%
   summarize(cagr_1 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-CAGR_expenditures_summary_majorcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23 ) %>% 
-  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
-  rename("Expenditure Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"23 Year CAGR" = cagr_23 )
+CAGR_expenditures_summary_majorcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr21_precovid, cagr22_midcovid, cagr_23 ) %>% 
+  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5, Category_name.6, Category_name.7 )) %>% 
+  rename("Expenditure Category" = Category_name, 
+         "1-year CAGR" = cagr_1, "2-year CAGR" = cagr_2, "3-year CAGR" = cagr_3, 
+         "5-year CAGR" = cagr_5, "10-year CAGR" = cagr_10, 
+         "Pre-COVID* 21-year CAGR"  = cagr_21, "Mid-COVID** 22-year CAGR" = cagr_22,
+         "23-year CAGR" = cagr_23 )
 
 CAGR_expenditures_summary_majorcats
+#CAGR_expenditures_summary_majorcats %>% write_csv("CAGR_expenditures_summary_majorcats.csv")
 
 
 
@@ -2088,7 +2145,20 @@ calc_cagr <- function(df, n) {
 }
 
 cagr_23 <- calc_cagr(revenue_wide, 23) %>% 
+  filter(Year == 2021) %>%
   summarize(cagr_23 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr_22midcovid <- revenue_wide %>%  
+  filter(Year<=2020) %>% # bases calculations off of fy2020
+  calc_cagr(22) %>%      # then does cagr calculation
+  filter(Year==2020) %>% # gets rid of NAs for other years
+  summarize(cagr_22 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr_21precovid <- revenue_wide %>% 
+  filter(Year <= 2019) %>% #makes sure 2019 is the last year
+  calc_cagr(21) %>%          # then does cagr calculation
+  filter(Year==2019) %>%
+  summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
 
 cagr_10 <- calc_cagr(revenue_wide, 10) %>% 
   filter(Year == 2021) %>%
@@ -2110,12 +2180,18 @@ cagr_2 <- calc_cagr(revenue_wide, 2) %>%
   filter(Year == 2021) %>%
   summarize(cagr_1 = case_when(Year == 2021 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-CAGR_revenue_summary_majorcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_23) %>%   
-  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
-  rename("Revenue Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"23 Year CAGR" = cagr_23 )
+CAGR_revenue_summary_majorcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_21precovid, cagr_22midcovid , cagr_23) %>%   
+  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5, Category_name.6, Category_name.7 )) %>% 
+  rename("Revenue Category" = Category_name, 
+         "1-year CAGR" = cagr_1, "2-year CAGR" = cagr_2, 
+         "3-year CAGR" = cagr_3, "5-year CAGR" = cagr_5,
+         "10-year CAGR" = cagr_10,
+         "Pre-COVID* 21-year CAGR"  = cagr_21, "Mid-COVID** 22-year CAGR" = cagr_22,
+         "23-year CAGR" = cagr_23 )
 
 CAGR_revenue_summary_majorcats
 
+CAGR_revenue_summary_majorcats %>% write_csv("CAGR_revenue_summary_majorcats.csv")
 
 
 ###### Yearly change summary table for Top 10 Revenues #####
@@ -2181,7 +2257,7 @@ dataset_names <- list('Aggregate Revenues' = revenue_wide2, # Top Categories agg
                       'aggregated_totals_long' = aggregated_totals_long # all data in long format. Good for creating pivot tables in Excel
                       )
 
-write.xlsx(dataset_names, file = 'summary_file_AWM_Oct10v2.xlsx')
+write.xlsx(dataset_names, file = 'summary_file_AWM_Oct13.xlsx')
 ```
 
 
