@@ -3,8 +3,11 @@ title: "FY2021 Analysis - Methodology for Fiscal Futures "
 author: "Alea Wilbur"
 date: "October 2022"
 output:
-  pdf_document: default
-  toc: yes
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+    df_print: paged
 ---
 
 ```{r eval = FALSE, include=FALSE}
@@ -32,7 +35,7 @@ library(lubridate)
 library(smooth)
 library(forecast)
 library(scales)
-
+library(kableExtra)
 library(ggplot2)
 library(readxl)
 library(tidyverse)
@@ -127,6 +130,7 @@ Code below reads in the csv files created in chunks above (allrevfiles.csv and a
 
 ```{r readCSVs}
 # combined in past chunks called create-rev-csv and create-exp-csv
+setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files")
 
 allrevfiles <- read_csv("allrevfiles22.csv") #combined but not recoded
 allexpfiles <- read_csv("allexpfiles22.csv") #combined but not recoded
@@ -552,12 +556,16 @@ exp_temp <- exp_temp %>%
 
 healthcare_costs <- exp_temp %>% filter(group == "904")
 
-healthcare_costs %>% group_by(fy) %>% summarise(healthcare_cost = sum(expenditure)) %>% arrange(-fy)
+healthcare_costs %>% group_by(fy) %>% 
+  summarise(healthcare_cost = sum(expenditure)) %>% arrange(-fy)
 
 
-exp_temp <- anti_join(exp_temp, healthcare_costs)
+exp_temp <- anti_join(exp_temp, healthcare_costs) %>% 
+  mutate(expenditure = ifelse(object == "1180", 0, expenditure))
 
-healthcare_costs_yearly <- healthcare_costs %>% group_by(fy, group) %>% summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)/1000000) %>% select(-group)
+healthcare_costs_yearly <- healthcare_costs %>% 
+  group_by(fy, group) %>% 
+  summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)/1000000) %>% select(-group)
 
 
 ```
@@ -1598,13 +1606,13 @@ aggregated_totals_long %>%
   
 ```
 
-
-```{r eval=FALSE,include = FALSE}
+**Expenditure and revenue amounts in millions of dollars:** 
+```{r}
 
 ### **Expenditure and revenue amounts in millions of dollars:** 
 
 exp_long %>%
-  filter(Year == 2021) %>%
+  filter(Year == 2021 & Category_name != "Total Expenditure") %>%
   #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
  # select(-c(Year, `Total Expenditures`)) %>%
   arrange(desc(`Dollars`)) %>%
@@ -1617,7 +1625,7 @@ exp_long %>%
   ylab("Millions of Dollars") 
 
 rev_long %>%
-  filter(Year == 2021) %>%
+  filter(Year == 2021 & Category_name != "Total Revenue") %>%
   #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
  # select(-c(Year, `Total Expenditures`)) %>%
   arrange(desc(`Dollars`)) %>%
@@ -1801,6 +1809,9 @@ CAGR_expenditures_summary_allcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, 
   rename("Expenditure Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"23 Year CAGR" = cagr_23 )
 
 CAGR_expenditures_summary_allcats
+CAGR_expenditures_summary_allcats %>% 
+  kbl(caption = "CAGR Calculations for Expenditures") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 
 expenditure_change_allcats <- exp_long %>%
@@ -1816,7 +1827,12 @@ expenditure_change_allcats <- exp_long %>%
   rename( "Compound Annual Growth, 1998-2021*" = `23 Year CAGR`, 
           "FY2021 Expenditure Category" = Category_name ) 
 
-expenditure_change_allcats
+#kableExtra::kable(expenditure_change_allcats)
+
+#expenditure_change_allcats
+
+expenditure_change_allcats %>% 
+  kbl(caption = "Change in Expenditures") %>% kable_styling(bootstrap_options = c("striped"))
 
 ```
 
@@ -1859,7 +1875,9 @@ CAGR_revenue_summary_allcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_
   select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
   rename("Revenue Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"23 Year CAGR" = cagr_23 )
 
-CAGR_revenue_summary_allcats
+CAGR_revenue_summary_allcats %>% 
+  kbl(caption = "CAGR Calculations for Revenues") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 revenue_change_allcats <- rev_long %>%
   select(-c(type,Category)) %>%
@@ -1875,7 +1893,9 @@ revenue_change_allcats <- rev_long %>%
           "FY2021 Revenue Category" = Category_name ) %>%
   select(-c(Dollars_2020, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`))
 
-revenue_change_allcats
+revenue_change_allcats %>% 
+  kbl(caption = "Revenue Change") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 ```
 
@@ -2097,7 +2117,9 @@ CAGR_expenditures_summary_majorcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5
          "Pre-COVID* 21-year CAGR"  = cagr_21, "Mid-COVID** 22-year CAGR" = cagr_22,
          "23-year CAGR" = cagr_23 )
 
-CAGR_expenditures_summary_majorcats
+CAGR_expenditures_summary_majorcats %>% 
+  kbl(caption = "CAGR Calculations for Largest Expenditures Categories") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 #CAGR_expenditures_summary_majorcats %>% write_csv("CAGR_expenditures_summary_majorcats.csv")
 
 
@@ -2115,7 +2137,9 @@ expenditure_change2 <- expenditure_wide %>%
   rename( "Compound Annual Growth, 1998-2021*" = `cagr_23`, 
           "FY2021 Expenditure Category" = Category_name) 
 
-expenditure_change2
+expenditure_change2 %>% 
+  kbl(caption = "Expenditure Change for Largest Categories") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 
 
@@ -2189,7 +2213,9 @@ CAGR_revenue_summary_majorcats <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cag
          "Pre-COVID* 21-year CAGR"  = cagr_21, "Mid-COVID** 22-year CAGR" = cagr_22,
          "23-year CAGR" = cagr_23 )
 
-CAGR_revenue_summary_majorcats
+CAGR_revenue_summary_majorcats %>% 
+  kbl(caption = "CAGR Calculations for Major Revenue Sources") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 CAGR_revenue_summary_majorcats %>% write_csv("CAGR_revenue_summary_majorcats.csv")
 
@@ -2208,7 +2234,9 @@ revenue_change2 <- revenue_wide %>%
           "FY2021 Revenue Category" = Category_name ) %>%
   select(-c(Dollars_2020, Dollars_2021)) 
 
-revenue_change2
+revenue_change2 %>% 
+  kbl(caption = "Change in Major Revenue Sources") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 revenue_wide %>%  
   filter(Category_name != "Total Revenue") %>% #uses only revenues
