@@ -543,6 +543,11 @@ exp_temp <- exp_temp %>%
   mutate(eehc = ifelse(
     # group insurance contributions for 2006-2012
     fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
+       # group insurance contributions from road fund
+  # coded with 1900 for some reason??
+    mutate(eehc = ifelse(
+      fund == "0011" & object == "1900" & agency == "416" & appr_org=="20", 0, eehc) ) %>%
+  
   mutate(expenditure = ifelse(eehc=="0", 0, expenditure)) %>%
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
       fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management Bureau of benefits using health insurance reserve 
@@ -2285,7 +2290,7 @@ dataset_names <- list('Aggregate Revenues' = revenue_wide2, # Top Categories agg
                       'aggregated_totals_long' = aggregated_totals_long # all data in long format. Good for creating pivot tables in Excel
                       )
 
-write.xlsx(dataset_names, file = 'summary_file_AWM_Oct13.xlsx')
+write.xlsx(dataset_names, file = 'summary_file_FY21_FINAL.xlsx')
 ```
 
 

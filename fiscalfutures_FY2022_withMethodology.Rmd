@@ -23,7 +23,7 @@ library(lubridate)
 library(smooth)
 library(forecast)
 library(scales)
-
+library(kableExtra)
 library(ggplot2)
 library(readxl)
 library(tidyverse)
@@ -952,13 +952,13 @@ Note that these are the raw figures BEFORE we take the additional steps:
 # Modify  Revenue data
 
 
-Revenue Categories not included in Fiscal Futures:   
+Revenue Categories NOT included in Fiscal Futures:   
 - 32.  Garnishment-Levies.  (State is fiduciary, not beneficiary.)  
 - 45.  Student Fees-Universities.  (Excluded from state-level budget.)  
 - 51.  Retirement Contributions (of individuals and non-state entities).    
 - 66.  Proceeds, Investment Maturities.  (Not sustainable flow.)  
 - 72.  Bond Issue Proceeds.  (Not sustainable flow.)     
-- 75.  Inter-Agency Receipts.  (Except from Funds excluded from Fiscal Futures)  
+- 75.  Inter-Agency Receipts.  
 - 79.  Cook County Intergovernmental Transfers.  (State is not beneficiary.)  
 - 98.  Prior Year Refunds.    
 
@@ -968,7 +968,7 @@ Expanded to include the following smaller sources:
 - 30.  Horse Racing Taxes & Fees.  
 - 60.  Other Grants and Contracts.  
 - 63.  Investment Income.    
-- 75.  Inter-Agency Receipts.     __(Only from Funds excluded from Fiscal Futures) - What does that actually mean?__
+
 
 For aggregating revenue, use the rev_1998_2022 dataframe, join the funds_ab_in_2022 file to it, and then join the ioc_source_type file to the dataset. 
 
@@ -1039,12 +1039,14 @@ Employee contributions to pension are a revenue source for the state. In order t
 
 
 # current year employee revenue source = 0573, contributions by employee == 572 (stops at 2011)
-pension_rev <- rev_temp %>% filter(rev_type == "51" & source == "0573" | source == "0572")
+pension_rev <- rev_temp %>% 
+  filter(rev_type == "51" & source == "0573" | source == "0572")
 
 
 rev_type <- anti_join(rev_temp, pension_rev)
 
-pension_rev_yearly <- rev_temp %>% filter(rev_type == "51" & source == "0573" | source == "0572") %>% 
+pension_rev_yearly <- rev_temp %>% 
+  filter(rev_type == "51" & source == "0573" | source == "0572") %>% 
   group_by(fy, rev_type) %>%
   summarise(pension_rev_sum = sum(receipts, na.rm=TRUE)/1000000) %>% select(-rev_type)
 
@@ -1168,7 +1170,7 @@ rev_temp %>%
 # they were the 4 smallest in past years, are they still the 4 smallest? 
 
 rev_temp <- rev_temp %>%  
-  mutate(rev_type_new = ifelse(rev_type=="30" | rev_type=="60" | rev_type=="63" | rev_type=="76" | rev_type=="78" , "78", rev_type_new))
+  mutate(rev_type_new = ifelse(rev_type=="30" | rev_type=="60" | rev_type=="63" | rev_type=="76", "78", rev_type_new))
 
 
 #table(rev_temp$rev_type_new)  # check work
@@ -1176,6 +1178,15 @@ rev_temp <- rev_temp %>%
 
 rm(rev_1998_2022)
 rm(exp_1998_2022)
+```
+
+```{r revenue-78-check, include=FALSE, eval = FALSE}
+
+filter(rev_temp) %>% 
+  filter(rev_type == "78"& fy == 2021) %>%  write.csv("rev78-R.csv")
+  #group_by(fund_name) %>% 
+ # summarize(sum = sum(receipts)) %>% arrange(-sum)
+
 ```
 
 
@@ -1220,11 +1231,11 @@ ff_rev <- ff_rev %>%
          rev_09 = rev_09 - ref_09,
          rev_21 = rev_21 - ref_21,
          rev_24 = rev_24 - ref_24,
-         rev_35 = rev_35 - ref_35,
+         rev_35 = rev_35 - ref_35
 
-         rev_78new = rev_78 #+ pension_amt #+ eehc
+      #   rev_78new = rev_78 #+ pension_amt #+ eehc
          ) %>% 
-  select(-c(ref_02:ref_35, rev_78, rev_99, rev_NA, rev_76#, pension_amt , rev_76,
+  select(-c(ref_02:ref_35, rev_99, rev_NA, rev_76#, pension_amt , rev_76,
           #  , eehc
             ))
 
@@ -1268,7 +1279,7 @@ aggregate_rev_labels <- ff_rev %>%
          # "BOND ISSUE PROCEEDS" = rev_72,  #dropped
          # "INTER-AGENCY RECEIPTS" = rev_75,  #dropped
      #    "TRANSFER IN FROM OUT FUNDS" = rev_76,  #other
-         "ALL OTHER SOURCES" = rev_78new ,
+         "ALL OTHER SOURCES" = rev_78,
          # "COOK COUNTY IGT" = rev_79, #dropped
          # "PRIOR YEAR REFUNDS" = rev_98 #dropped
   ) 
@@ -1343,7 +1354,7 @@ Create total revenues and total expenditures only:
 
 
 ```{r rev-exp-totals-long}
-rev_long <- pivot_longer(ff_rev, rev_02:rev_78new, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
   rename(Year = fy) %>%
   mutate(Category_name = case_when(
     Category == "02" ~ "INDIVIDUAL INCOME TAXES, gross of local, net of refunds" ,
@@ -1377,7 +1388,7 @@ rev_long <- pivot_longer(ff_rev, rev_02:rev_78new, names_to = c("type","Category
     Category == "72" ~ "BOND ISSUE PROCEEDS",  #dropped
     Category == "75" ~  "INTER-AGENCY RECEIPTS ",  #dropped
     Category == "76" ~  "TRANSFER IN FROM OUT FUNDS",  #other
-    Category == "78new" ~  "ALL OTHER SOURCES" ,
+    Category == "78" ~  "ALL OTHER SOURCES" ,
     Category == "79" ~   "COOK COUNTY IGT", #dropped
     Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
                  T ~ "Check Me!"
@@ -1443,7 +1454,8 @@ year_totals <- aggregated_totals_long %>%
   rename(
          Expenditures = exp,
          Revenue = rev) %>%  
-  mutate(Gap = Revenue - Expenditures)
+  mutate(Gap = Revenue - Expenditures) %>% 
+  arrange(desc(Year))
 # creates variable for the Gap each year
 
 year_totals
@@ -1502,7 +1514,7 @@ aggregated_totals_long %>%
 
 
 **Expenditure and revenue amounts in millions of dollars:** 
-```{r include = FALSE}
+```{r}
 exp_long %>%
   filter(Year == 2022) %>%
   #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
@@ -1693,7 +1705,9 @@ CAGR_expenditures_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10,
   select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
   rename("Expenditure Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"24 Year CAGR" = cagr_24 )
 
-CAGR_expenditures_summary
+CAGR_expenditures_summary %>% 
+  kbl(caption = "CAGR Calculations for Expenditure Categories") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 # to have it as a csv, uncomment the line below
 #write_csv(CAGR_expenditures_summary, "CAGR_expenditures_summary.csv")
@@ -1739,7 +1753,9 @@ CAGR_revenue_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr
   select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
   rename("Revenue Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"24 Year CAGR" = cagr_24 )
 
-CAGR_revenue_summary
+CAGR_revenue_summary %>% 
+  kbl(caption = "CAGR Calculations for Revenue Sources") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 # to have it as a csv, uncomment the line below
 #write_csv(CAGR_revenue_summary, "CAGR_revenue_summary.csv")
@@ -1780,7 +1796,9 @@ revenue_change <- rev_long %>%
           "FY2022 Revenue Category" = Category_name ) %>%
   select(-c(Dollars_2021, Dollars_2022, `1 Year CAGR`:`10 Year CAGR`)) 
 
-revenue_change
+revenue_change %>% 
+  kbl(caption = "Yearly Change in Revenue") %>% 
+  kable_styling(bootstrap_options = c("striped"))
 
 expenditure_change <- exp_long %>%
   select(-c(type,Category)) %>%
@@ -1795,7 +1813,9 @@ expenditure_change <- exp_long %>%
   rename( "Compound Annual Growth, 1998-2022*" = `24 Year CAGR`, 
           "FY2022 Expenditure Category" = Category_name )
 
-expenditure_change
+expenditure_change %>% 
+  kbl(caption = "Yearly Change in Expenditures") %>% 
+  kable_styling(bootstrap_options = c("striped"))
            
 ```
 
