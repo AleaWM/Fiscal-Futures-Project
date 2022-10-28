@@ -42,13 +42,15 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE
 Data files for closed years have been obtained from IOC.  Source spending data is at the fund-agency-object level and source revenue data is at the fund-agency-source level.  
 
 Revenue File:  
-- 684 Fund Numbers  
-- 1185 Revenue sources  
+- 684 Fund Numbers 
 - 80 Agencies  
+- 1185 Revenue sources  
 
 Expenditure File:  
-- 708 Funds  
-- 107 Agencies - 98 Division Numbers, 313 Division names  
+- 708 Fund Numbers
+- 107 Agencies   
+- 98 Division Numbers   
+- 313 Division names    
 
 ```{r inspect-newdata, eval=FALSE, include=FALSE}
 revenue_fy22 <- read_xlsx("Fis_Fut_Rev_2022.xlsx") %>% 
@@ -126,6 +128,31 @@ The code chunk below takes the .dta files for all fiscal years before FY 2022 an
 
 Reads in dta file and leaves fund as a character. No longer have to worry about preserving leading zeros in categories like the fund numbers. State code used to force fund, source, and from_fund to be 4 digits long and preserve leading zeros and fund was 3 digits long with leading zeros.
 
+```{r create-rev-csv-FY21, include=FALSE}
+setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/revenue")
+
+allrevfiles21 = list.files(path = "C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/revenue",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows %>% filter(fy < 2022)
+#Fy21: 62294 observations, 13 variables
+#FY22: 65094 obs, 13 vars
+
+#write_csv(allrevfiles21, "allrevfiles21.csv")
+
+
+
+
+setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/expenditures")
+
+allexpfiles21 = list.files(path = "C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/expenditures",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows %>% filter(fy < 2022)
+
+#fy21 213372 observations, 20 variables
+# fy22 225587 obs, 21 vars.
+
+#write_csv(allexpfiles21, "allexpfiles21.csv")
+
+
+```
+
+
 ```{r create-rev-csv, eval = FALSE, include=FALSE}
 setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/revenue")
 
@@ -135,7 +162,7 @@ allrevfiles22 = list.files(path = "C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021
 #Fy21: 62295 observations, 13 variables
 #FY22: 65094 obs, 13 vars
 
-write_csv(allrevfiles22, "allrevfiles22.csv")
+# write_csv(allrevfiles22, "allrevfiles22.csv")
 
 
 
@@ -147,7 +174,7 @@ allexpfiles22 = list.files(path = "C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021
 #fy21 213372 observations, 20 variables
 # fy22 225587 obs, 21 vars.
 
-write_csv(allexpfiles22, "allexpfiles22.csv")
+# write_csv(allexpfiles22, "allexpfiles22.csv")
 
 ```
  
@@ -158,8 +185,8 @@ Code below reads in the csv files created in chunks above (allrevfiles.csv and a
 ```{r readCSVs}
 # combined in past chunks called create-rev-csv and create-exp-csv
 
-allrevfiles <- read_csv("allrevfiles22.csv") #combined but not recoded
-allexpfiles <- read_csv("allexpfiles22.csv") #combined but not recoded
+allrevfiles22 <- read_csv("allrevfiles22.csv") #combined but not recoded
+allexpfiles22 <- read_csv("allexpfiles22.csv") #combined but not recoded
 
 ```
 
@@ -206,11 +233,77 @@ exp_fy22 <- read_xlsx("Fis_Fut_Exp_2022.xlsx") %>%
 
 ```
 
+### Finding new agencies and funds
 
 
 Identify new and reused funds for newest fiscal year. Recode funds to take into account different fund numbers/names over the years. Update fund_ab_in_2021.xlsx with any changes from previous fiscal year. 
 
 > Clarify and add steps for identifying new and reused funds.
+
+```{r}
+agencies_past <- allexpfiles21  %>% filter(fy < 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% unique() %>% summarize(Expenditure = sum(expenditure, na.rm = TRUE)) %>% drop_na() %>% arrange(-Expenditure)
+# agencies_past # 146 agencies ever
+
+agencies22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(agency = as.character(agency)) %>% group_by(agency, agency_name) %>% summarize(Expenditure = sum(expenditure, na.rm = TRUE))
+# agencies22 # 107 agencies this year
+
+
+# 280 and 533 are new agency codes: 
+anti_join(agencies22, agencies_past, by = c("agency", "agency_name")) %>% arrange(-Expenditure)
+
+
+
+
+funds_past <- allexpfiles21  %>% filter(fy < 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>% summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE))  %>% drop_na()
+
+funds22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>%  summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE)) %>% unique()
+
+
+# 15 funds were in FY22 data that were not in past data:
+anti_join(funds22, funds_past, by = c("fund", "fund_name")) %>% arrange(-Expenditure)
+
+
+orgs_past <- allexpfiles21  %>% filter(fy < 2022) %>% mutate(appr_org == as.character(appr_org)) %>% group_by(appr_org, org_name) %>% unique() %>% summarize(Expenditure = sum(expenditure, na.rm = TRUE)) %>% drop_na()
+# orgs_past # 916 org groups ever
+
+orgs22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(appr_org = as.character(appr_org)) %>% group_by(appr_org, org_name) %>% summarize(Expenditure = sum(expenditure, na.rm = TRUE))
+# orgs22 # 396 org groups this year
+
+
+# 4 org number and org name combos are new for FY2022:
+anti_join(orgs22, orgs_past, by = c("appr_org", "org_name")) %>% arrange(-Expenditure)
+
+
+agencies_past <- allrevfiles21  %>% filter(fy < 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% unique() %>% summarize(Receipts = sum(receipts, na.rm = TRUE)) %>% drop_na()
+# agencies_past # 108 agencies ever
+
+agencies22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(agency = as.character(agency)) %>% group_by(agency, agency_name) %>% summarize(Receipts = sum(receipts, na.rm = TRUE))
+# agencies22 # 80 agencies this year
+
+anti_join(agencies22, agencies_past, by = c("agency", "agency_name")) %>% arrange(-Receipts)
+
+
+funds_past <- allrevfiles21  %>% filter(fy < 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>% summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %>% drop_na()
+
+funds22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>%  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %>% unique() %>% drop_na()
+
+# 19 revenue funds were in FY22 revenue data that were not in past data 
+# some could be small fund name changes
+anti_join(funds22, funds_past, by = c("fund", "fund_name")) %>% arrange(-Receipts)
+
+
+
+sources_past <- allrevfiles21  %>% filter(fy < 2022) %>% mutate(source == as.character(source)) %>% group_by(source, source_name) %>% summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %>% drop_na()
+
+sources22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(source == as.character(source)) %>% group_by(source, source_name) %>%  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %>% unique()
+
+
+# 20 revenue sources were in FY22 data that were not in past data 
+# some could be small source name changes:
+anti_join(sources22, sources_past, by = c("source", "source_name")) %>% arrange(-Receipts)
+
+```
+
 
 
 For funds that were reused once, a 9 replaces the 0 as the first digit. If reused twice, then the first two values are 10.   
@@ -221,7 +314,7 @@ For funds that were reused once, a 9 replaces the 0 as the first digit. If reuse
 ```{r recode-rev-funds}
 # if first character is a 0, replace with a 9
 
-rev_1998_2022 <- allrevfiles %>%
+rev_1998_2022 <- allrevfiles22 %>%
       mutate(fund = ifelse(fy < 2002 & fund %in% c("0730", "0241", "0350", "0367", "0381", "0382", "0526", "0603", "0734", "0913", "0379"), str_replace(fund, "0","9"), fund)) %>%
   
   mutate(fund = ifelse(fy < 2008 & fund %in% c("0027", "0033", "0037", "0058", "0062", "0066", "0075", "0083", "0116", "0119", "0120", "0122", "0148", "0149", "0157", "0158", "0166", "0194", "0201", "0209", "0211", "0217", "0223", "0231", "0234", "0253", "0320", "0503", "0505", "0512", "0516", "0531", "0532", "0533", "0547", "0563", "0579", "0591", "0606", "0616", "0624", "0659", "0662", "0665", "0676", "0710", 
@@ -252,7 +345,7 @@ Expenditure recoding:
 ```{r recode-exp-funds}
 # if first character is a 0, replace with a 9
 
-exp_1998_2022 <- allexpfiles %>%
+exp_1998_2022 <- allexpfiles22 %>%
       mutate(fund = ifelse(fy < 2002 & fund %in% c("0730", "0241", "0350", "0367", "0381", "0382", "0526", "0603", "0734", "0913", "0379"), str_replace(fund, "0","9"), fund)) %>%
   
   mutate(fund = ifelse(fy < 2008 & fund %in% c("0027", "0033", "0037", "0058", "0062", "0066", "0075", "0083", "0116", "0119", "0120", "0122", "0148", "0149", "0157", "0158", "0166", "0194", "0201", "0209", "0211", "0217", "0223", "0231", "0234", "0253", "0320", "0503", "0505", "0512", "0516", "0531", "0532", "0533", "0547", "0563", "0579", "0591", "0606", "0616", "0624", "0659", "0662", "0665", "0676", "0710", 

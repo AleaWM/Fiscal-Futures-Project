@@ -3127,12 +3127,12 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE
 spending data is at the fund-agency-object level and source revenue data
 is at the fund-agency-source level.</p>
 <p>Revenue File:<br />
-- 684 Fund Numbers<br />
-- 1185 Revenue sources<br />
-- 80 Agencies</p>
+- 684 Fund Numbers - 80 Agencies<br />
+- 1185 Revenue sources</p>
 <p>Expenditure File:<br />
-- 708 Funds<br />
-- 107 Agencies - 98 Division Numbers, 313 Division names</p>
+- 708 Fund Numbers - 107 Agencies<br />
+- 98 Division Numbers<br />
+- 313 Division names</p>
 </div>
 <div id="variables" class="section level1">
 <h1>Variables</h1>
@@ -3185,8 +3185,8 @@ file for summing categories because it is just an in between step before
 recoding revenue and expenditure categories.</p>
 <pre class="r"><code># combined in past chunks called create-rev-csv and create-exp-csv
 
-allrevfiles &lt;- read_csv(&quot;allrevfiles22.csv&quot;) #combined but not recoded
-allexpfiles &lt;- read_csv(&quot;allexpfiles22.csv&quot;) #combined but not recoded</code></pre>
+allrevfiles22 &lt;- read_csv(&quot;allrevfiles22.csv&quot;) #combined but not recoded
+allexpfiles22 &lt;- read_csv(&quot;allexpfiles22.csv&quot;) #combined but not recoded</code></pre>
 <p>Normally, when your receive the new fiscal year files from the
 Comptrollers office, you will need to change the variable names so that
 they are consistent with past years. This is an example of reading in
@@ -3230,12 +3230,91 @@ exp_fy22 &lt;- read_xlsx(&quot;Fis_Fut_Exp_2022.xlsx&quot;) %&gt;%
 #          type = ,
 #          fund_cat = FIND_COLUMN, #create fund_cat column
 #          fund_cat_name = FIND_NAME) # create fund_cat_name column</code></pre>
+<div id="finding-new-agencies-and-funds" class="section level3">
+<h3>Finding new agencies and funds</h3>
 <p>Identify new and reused funds for newest fiscal year. Recode funds to
 take into account different fund numbers/names over the years. Update
 fund_ab_in_2021.xlsx with any changes from previous fiscal year.</p>
 <blockquote>
 <p>Clarify and add steps for identifying new and reused funds.</p>
 </blockquote>
+<pre class="r"><code>agencies_past &lt;- allexpfiles21  %&gt;% filter(fy &lt; 2022) %&gt;% mutate(agency == as.character(agency)) %&gt;% group_by(agency, agency_name) %&gt;% unique() %&gt;% summarize(Expenditure = sum(expenditure, na.rm = TRUE)) %&gt;% drop_na() %&gt;% arrange(-Expenditure)
+# agencies_past # 146 agencies ever
+
+agencies22 &lt;- allexpfiles22  %&gt;% filter(fy == 2022) %&gt;% mutate(agency = as.character(agency)) %&gt;% group_by(agency, agency_name) %&gt;% summarize(Expenditure = sum(expenditure, na.rm = TRUE))
+# agencies22 # 107 agencies this year
+
+
+# 280 and 533 are new agency codes: 
+anti_join(agencies22, agencies_past, by = c(&quot;agency&quot;, &quot;agency_name&quot;)) %&gt;% arrange(-Expenditure)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["agency"],"name":[1],"type":["chr"],"align":["left"]},{"label":["agency_name"],"name":[2],"type":["chr"],"align":["left"]},{"label":["Expenditure"],"name":[3],"type":["dbl"],"align":["right"]}],"data":[{"1":"533","2":"COMM ON EQUITY & INCLUSION","3":"1374653.51"},{"1":"280","2":"COURTS COMMISSION","3":"37746.77"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code>funds_past &lt;- allexpfiles21  %&gt;% filter(fy &lt; 2022) %&gt;% mutate(fund == as.character(fund)) %&gt;% group_by(fund, fund_name) %&gt;% summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE))  %&gt;% drop_na()
+
+funds22 &lt;- allexpfiles22  %&gt;% filter(fy == 2022) %&gt;% mutate(fund == as.character(fund)) %&gt;% group_by(fund, fund_name) %&gt;%  summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE)) %&gt;% unique()
+
+
+# 15 funds were in FY22 data that were not in past data:
+anti_join(funds22, funds_past, by = c(&quot;fund&quot;, &quot;fund_name&quot;)) %&gt;% arrange(-Expenditure)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["fund"],"name":[1],"type":["chr"],"align":["left"]},{"label":["fund_name"],"name":[2],"type":["chr"],"align":["left"]},{"label":["count"],"name":[3],"type":["int"],"align":["right"]},{"label":["Expenditure"],"name":[4],"type":["dbl"],"align":["right"]}],"data":[{"1":"0628","2":"ESSENTIAL GOVT SERV SUPPORT","3":"1","4":"736120866.9"},{"1":"0319","2":"PENSION STABILIZATION","3":"10","4":"300000000.0"},{"1":"0544","2":"DOIT SPECIAL PROJECTS","3":"3","4":"9998631.5"},{"1":"0427","2":"ENERGY TRANSITION ASSISTANCE","3":"8","4":"6046483.2"},{"1":"0656","2":"HORSE RACING PURSE EQUITY","3":"1","4":"5908047.6"},{"1":"0367","2":"CAP FACILITY TEC MODERNIZATION","3":"2","4":"1000000.0"},{"1":"0634","2":"STATE TREASURER'S CAPITAL","3":"1","4":"250000.0"},{"1":"0422","2":"ELECTRIC VEHICLE REBATE","3":"3","4":"224908.5"},{"1":"0976","2":"FAIRGROUNDS IMPROVMNT & RACING","3":"1","4":"10000.0"},{"1":"0672","2":"CONSUMER INTERVENOR COMP.","3":"1","4":"2665.0"},{"1":"0110","2":"DEV. DISABILITIES AWARENESS","3":"1","4":"0.0"},{"1":"0351","2":"FREEDOM SCHOOLS","3":"1","4":"0.0"},{"1":"0392","2":"EQUAL PAY REGISTRATION","3":"1","4":"0.0"},{"1":"0393","2":"SICKLE CELL CHRONIC DISEASE","3":"1","4":"0.0"},{"1":"0461","2":"PARITY ADVANCEMENT","3":"1","4":"0.0"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code>orgs_past &lt;- allexpfiles21  %&gt;% filter(fy &lt; 2022) %&gt;% mutate(appr_org == as.character(appr_org)) %&gt;% group_by(appr_org, org_name) %&gt;% unique() %&gt;% summarize(Expenditure = sum(expenditure, na.rm = TRUE)) %&gt;% drop_na()
+# orgs_past # 916 org groups ever
+
+orgs22 &lt;- allexpfiles22  %&gt;% filter(fy == 2022) %&gt;% mutate(appr_org = as.character(appr_org)) %&gt;% group_by(appr_org, org_name) %&gt;% summarize(Expenditure = sum(expenditure, na.rm = TRUE))
+# orgs22 # 396 org groups this year
+
+
+# 4 org number and org name combos are new for FY2022:
+anti_join(orgs22, orgs_past, by = c(&quot;appr_org&quot;, &quot;org_name&quot;)) %&gt;% arrange(-Expenditure)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["appr_org"],"name":[1],"type":["chr"],"align":["left"]},{"label":["org_name"],"name":[2],"type":["chr"],"align":["left"]},{"label":["Expenditure"],"name":[3],"type":["dbl"],"align":["right"]}],"data":[{"1":"25","2":"RETIREMENT SYSTEM PMT ADMIN","3":"600000000.00"},{"1":"05","2":"PAROLE","3":"51493444.12"},{"1":"06","2":"RE-ENTRY SERVICES","3":"17182773.70"},{"1":"34","2":"IL CRIMINAL JUSTICE INFO AUTH","3":"55659.04"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code>agencies_past &lt;- allrevfiles21  %&gt;% filter(fy &lt; 2022) %&gt;% mutate(agency == as.character(agency)) %&gt;% group_by(agency, agency_name) %&gt;% unique() %&gt;% summarize(Receipts = sum(receipts, na.rm = TRUE)) %&gt;% drop_na()
+# agencies_past # 108 agencies ever
+
+agencies22 &lt;- allrevfiles22  %&gt;% filter(fy == 2022) %&gt;% mutate(agency = as.character(agency)) %&gt;% group_by(agency, agency_name) %&gt;% summarize(Receipts = sum(receipts, na.rm = TRUE))
+# agencies22 # 80 agencies this year
+
+anti_join(agencies22, agencies_past, by = c(&quot;agency&quot;, &quot;agency_name&quot;)) %&gt;% arrange(-Receipts)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["agency"],"name":[1],"type":["chr"],"align":["left"]},{"label":["agency_name"],"name":[2],"type":["chr"],"align":["left"]},{"label":["Receipts"],"name":[3],"type":["dbl"],"align":["right"]}],"data":[],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code>funds_past &lt;- allrevfiles21  %&gt;% filter(fy &lt; 2022) %&gt;% mutate(fund == as.character(fund)) %&gt;% group_by(fund, fund_name) %&gt;% summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %&gt;% drop_na()
+
+funds22 &lt;- allrevfiles22  %&gt;% filter(fy == 2022) %&gt;% mutate(fund == as.character(fund)) %&gt;% group_by(fund, fund_name) %&gt;%  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %&gt;% unique() %&gt;% drop_na()
+
+# 19 revenue funds were in FY22 revenue data that were not in past data 
+# some could be small fund name changes
+anti_join(funds22, funds_past, by = c(&quot;fund&quot;, &quot;fund_name&quot;)) %&gt;% arrange(-Receipts)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["fund"],"name":[1],"type":["chr"],"align":["left"]},{"label":["fund_name"],"name":[2],"type":["chr"],"align":["left"]},{"label":["count"],"name":[3],"type":["int"],"align":["right"]},{"label":["Receipts"],"name":[4],"type":["dbl"],"align":["right"]}],"data":[{"1":"0628","2":"ESSENTIAL GOVT SERV SUPPORT","3":"1","4":"1.000000e+09"},{"1":"0683","2":"GROCERY TAX REPLACEMENT","3":"1","4":"3.250000e+08"},{"1":"0319","2":"PENSION STABILIZATION","3":"1","4":"3.000000e+08"},{"1":"0427","2":"ENERGY TRANSITION ASSISTANCE","3":"1","4":"2.877307e+07"},{"1":"0743","2":"LAW ENFORCEMENT TRAINING","3":"1","4":"2.523023e+07"},{"1":"0351","2":"FREEDOM SCHOOLS","3":"1","4":"1.700000e+07"},{"1":"0422","2":"ELECTRIC VEHICLE REBATE","3":"3","4":"1.352880e+07"},{"1":"0966","2":"ILLINOIS WORKS","3":"1","4":"1.000000e+07"},{"1":"0544","2":"DOIT SPECIAL PROJECTS","3":"2","4":"9.998632e+06"},{"1":"0656","2":"HORSE RACING PURSE EQUITY","3":"1","4":"5.908048e+06"},{"1":"0367","2":"CAP FACILITY TEC MODERNIZATION","3":"1","4":"5.300000e+06"},{"1":"0848","2":"SETTLEMENT","3":"1","4":"5.000000e+06"},{"1":"0742","2":"ST. POLICE TRAINING & ACADEMY","3":"1","4":"2.803359e+06"},{"1":"0672","2":"CONSUMER INTERVENOR COMP.","3":"1","4":"1.220000e+06"},{"1":"0723","2":"REVOCATION ENFORCEMENT","3":"1","4":"7.490730e+05"},{"1":"0634","2":"STATE TREASURER'S CAPITAL","3":"2","4":"2.731917e+05"},{"1":"0165","2":"RONALD MCDONALD HOUSE CHARITY","3":"1","4":"1.438928e+05"},{"1":"0976","2":"FAIRGROUNDS IMPROVMNT & RACING","3":"3","4":"9.366357e+04"},{"1":"0392","2":"EQUAL PAY REGISTRATION","3":"1","4":"2.415000e+04"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code>sources_past &lt;- allrevfiles21  %&gt;% filter(fy &lt; 2022) %&gt;% mutate(source == as.character(source)) %&gt;% group_by(source, source_name) %&gt;% summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %&gt;% drop_na()
+
+sources22 &lt;- allrevfiles22  %&gt;% filter(fy == 2022) %&gt;% mutate(source == as.character(source)) %&gt;% group_by(source, source_name) %&gt;%  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %&gt;% unique()
+
+
+# 20 revenue sources were in FY22 data that were not in past data 
+# some could be small source name changes:
+anti_join(sources22, sources_past, by = c(&quot;source&quot;, &quot;source_name&quot;)) %&gt;% arrange(-Receipts)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["source"],"name":[1],"type":["chr"],"align":["left"]},{"label":["source_name"],"name":[2],"type":["chr"],"align":["left"]},{"label":["count"],"name":[3],"type":["int"],"align":["right"]},{"label":["Receipts"],"name":[4],"type":["dbl"],"align":["right"]}],"data":[{"1":"2292","2":"VIDEO TERMINAL TAX","3":"3","4":"893824161.56"},{"1":"0303","2":"LOTTERY-ILOTTERY SETTLEMENT","3":"1","4":"177417302.14"},{"1":"2740","2":"ENRGY TRANSITION ASST/ELECTRIC","3":"1","4":"28773074.81"},{"1":"2699","2":"RB RECONCILIATION FEE","3":"1","4":"15000000.00"},{"1":"2745","2":"FY22 TITLE INCREASE","3":"1","4":"3072054.00"},{"1":"2742","2":"OPERATION ASSESSMENT FEE","3":"1","4":"2828085.38"},{"1":"2736","2":"STATE ST INSTITNL US GOV FND","3":"1","4":"1622448.06"},{"1":"2755","2":"PUBLIC UTIL - ETHICS REPRT FEE","3":"1","4":"1235000.00"},{"1":"2739","2":"PUBLIC UTILITIES","3":"1","4":"1220000.00"},{"1":"2611","2":"E-PAY ADMINISTRATION FEES","3":"1","4":"1136120.58"},{"1":"2590","2":"ALTON CENTER BUSINESS PARK","3":"1","4":"291666.69"},{"1":"2756","2":"UNEXP CAPITAL IMP PROJECTS","3":"1","4":"90582.98"},{"1":"2737","2":"VGA - IL STATE FAIR OP FEES","3":"1","4":"48387.30"},{"1":"2457","2":"E ST LOUIS FINANCE AUTH","3":"1","4":"41666.67"},{"1":"2747","2":"BUSINESS FILING FEE","3":"1","4":"24150.00"},{"1":"2660","2":"CONCESSION REVENUE-FOOD","3":"1","4":"17210.04"},{"1":"2738","2":"VGA-DU QUOIN STATE FAIR OP FEE","3":"1","4":"11029.15"},{"1":"2748","2":"CORN COMMODITY SPONSORS","3":"1","4":"5000.00"},{"1":"2729","2":"NORTH PARK COLLEGE LIC PLATES","3":"1","4":"20.00"},{"1":"2682","2":"SW BADGE REPLACEMENT FEES","3":"1","4":"10.00"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
 <p>For funds that were reused once, a 9 replaces the 0 as the first
 digit. If reused twice, then the first two values are 10.<br />
 - Ex. 0350 –&gt; 9350 because its use changed.<br />
@@ -3244,7 +3323,7 @@ was fund 0367 originally, then its use changed and it was recoded as
 9367, and now it changed again so it is a 10367.</p>
 <pre class="r"><code># if first character is a 0, replace with a 9
 
-rev_1998_2022 &lt;- allrevfiles %&gt;%
+rev_1998_2022 &lt;- allrevfiles22 %&gt;%
       mutate(fund = ifelse(fy &lt; 2002 &amp; fund %in% c(&quot;0730&quot;, &quot;0241&quot;, &quot;0350&quot;, &quot;0367&quot;, &quot;0381&quot;, &quot;0382&quot;, &quot;0526&quot;, &quot;0603&quot;, &quot;0734&quot;, &quot;0913&quot;, &quot;0379&quot;), str_replace(fund, &quot;0&quot;,&quot;9&quot;), fund)) %&gt;%
   
   mutate(fund = ifelse(fy &lt; 2008 &amp; fund %in% c(&quot;0027&quot;, &quot;0033&quot;, &quot;0037&quot;, &quot;0058&quot;, &quot;0062&quot;, &quot;0066&quot;, &quot;0075&quot;, &quot;0083&quot;, &quot;0116&quot;, &quot;0119&quot;, &quot;0120&quot;, &quot;0122&quot;, &quot;0148&quot;, &quot;0149&quot;, &quot;0157&quot;, &quot;0158&quot;, &quot;0166&quot;, &quot;0194&quot;, &quot;0201&quot;, &quot;0209&quot;, &quot;0211&quot;, &quot;0217&quot;, &quot;0223&quot;, &quot;0231&quot;, &quot;0234&quot;, &quot;0253&quot;, &quot;0320&quot;, &quot;0503&quot;, &quot;0505&quot;, &quot;0512&quot;, &quot;0516&quot;, &quot;0531&quot;, &quot;0532&quot;, &quot;0533&quot;, &quot;0547&quot;, &quot;0563&quot;, &quot;0579&quot;, &quot;0591&quot;, &quot;0606&quot;, &quot;0616&quot;, &quot;0624&quot;, &quot;0659&quot;, &quot;0662&quot;, &quot;0665&quot;, &quot;0676&quot;, &quot;0710&quot;, 
@@ -3271,7 +3350,7 @@ rev_1998_2022 &lt;- allrevfiles %&gt;%
 <p>Expenditure recoding:</p>
 <pre class="r"><code># if first character is a 0, replace with a 9
 
-exp_1998_2022 &lt;- allexpfiles %&gt;%
+exp_1998_2022 &lt;- allexpfiles22 %&gt;%
       mutate(fund = ifelse(fy &lt; 2002 &amp; fund %in% c(&quot;0730&quot;, &quot;0241&quot;, &quot;0350&quot;, &quot;0367&quot;, &quot;0381&quot;, &quot;0382&quot;, &quot;0526&quot;, &quot;0603&quot;, &quot;0734&quot;, &quot;0913&quot;, &quot;0379&quot;), str_replace(fund, &quot;0&quot;,&quot;9&quot;), fund)) %&gt;%
   
   mutate(fund = ifelse(fy &lt; 2008 &amp; fund %in% c(&quot;0027&quot;, &quot;0033&quot;, &quot;0037&quot;, &quot;0058&quot;, &quot;0062&quot;, &quot;0066&quot;, &quot;0075&quot;, &quot;0083&quot;, &quot;0116&quot;, &quot;0119&quot;, &quot;0120&quot;, &quot;0122&quot;, &quot;0148&quot;, &quot;0149&quot;, &quot;0157&quot;, &quot;0158&quot;, &quot;0166&quot;, &quot;0194&quot;, &quot;0201&quot;, &quot;0209&quot;, &quot;0211&quot;, &quot;0217&quot;, &quot;0223&quot;, &quot;0231&quot;, &quot;0234&quot;, &quot;0253&quot;, &quot;0320&quot;, &quot;0503&quot;, &quot;0505&quot;, &quot;0512&quot;, &quot;0516&quot;, &quot;0531&quot;, &quot;0532&quot;, &quot;0533&quot;, &quot;0547&quot;, &quot;0563&quot;, &quot;0579&quot;, &quot;0591&quot;, &quot;0606&quot;, &quot;0616&quot;, &quot;0624&quot;, &quot;0659&quot;, &quot;0662&quot;, &quot;0665&quot;, &quot;0676&quot;, &quot;0710&quot;, 
@@ -3322,6 +3401,7 @@ exp_temp &lt;- exp_temp %&gt;%
     agency == &quot;560&quot; ~ &quot;592&quot;, # IL finance authority (fire trucks and agriculture stuff)to state fire marshal
     agency == &quot;570&quot; &amp; fund == &quot;0011&quot; ~ &quot;494&quot;,   # city of Chicago road fund to transportation
     TRUE ~ (as.character(agency)))) </code></pre>
+</div>
 </div>
 <div id="modify-expenditure-file" class="section level1">
 <h1>Modify Expenditure File</h1>
