@@ -1,5 +1,5 @@
 ---
-title: "FY2021 Analysis - Methodology for Fiscal Futures "
+title: "FY2021 Analysis - Methodology for Fiscal Futures"
 author: "Alea Wilbur"
 date: "October 2022"
 output:
@@ -1541,7 +1541,6 @@ stata_labels_exp <- pivot_longer(ff_exp, exp_402:exp_TOTALS , names_to = c("type
              Category == "557" ~ "IL STATE TOLL HIGHWAY AUTH ($ mil.)" ,
              Category == "684" ~ "IL COMMUNITY COLLEGE BOARD ($ mil.)", 
              Category == "691" ~ "IL STUDENT ASSISTANCE COMM ($ mil.)" ,
-             Category == "900" ~ "NOT IN FRAME",
              Category == "901" ~ "STATE PENSION CONTRIBUTION ($ mil.)",
              Category == "903" ~ "DEBT SERVICE ($ mil.)",
              Category == "904" ~ "STATE EMPLOYEE HEALTHCARE ($ mil.)",
