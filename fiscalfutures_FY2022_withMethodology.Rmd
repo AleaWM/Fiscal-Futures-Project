@@ -53,52 +53,37 @@ Expenditure File:
 - 313 Division names    
 
 ```{r inspect-newdata, eval=FALSE, include=FALSE}
-revenue_fy22 <- read_xlsx("Fis_Fut_Rev_2022.xlsx") %>% 
-  rename(fy = 'FISCAL YEAR',
-         fund = 'FUND #',
+ 
+revenue_fy22 <- read_xlsx("Fis_Fut_Rev_2022_Final.xlsx") %>% 
+  rename(fy = 'FY',
+         fund = 'FUND',
          fund_name = 'FUND NAME',
-         agency = 'AGENCY #',
+         agency = 'AGENCY',
          agency_name = 'AGENCY NAME',
-         source = 'REVENUE SOURCE #',
+         source = 'REVENUE SOURCE',
          source_name = 'REV SRC NAME',
-         receipts = 'REVENUE YTD AMOUNT'
+         receipts = 'AMOUNT'
   ) 
-
 # rev_type doesn't exist yet
 revenue_fy22 %>% group_by(rev_type, fy) %>% summarize(revenue = sum(receipts) )%>% pivot_wider(names_from = fy, values_from = revenue)
 
-
-exp_fy22 <- read_xlsx("Fis_Fut_Exp_2022.xlsx") %>% 
-  rename(fy = 'FISCAL YEAR',
-         fund = 'FUND #',
+exp_fy22 <- read_xlsx("Fis_Fut_Exp_2022_Final.xlsx") %>% 
+  rename(fy = 'FY',
+         fund = 'FUND',
          fund_name = 'FUND NAME',
-         agency = 'AGENCY #',
-         agency_name = 'AGENC .NAME',
-         appr_org = 'DIVISION',
-         org_name = 'DIVISION NAME',
-         obj_seq_type = 'APPROPRIATION #',
+         agency = 'AGENCY',
+         agency_name = 'AGENCY NAME',
+         appr_org = 'ORGANIZATION',
+         org_name = 'ORGANIZATION NAME',
+         obj_seq_type = 'APPROPRIATION',
          wh_approp_name = 'APPROPRIATION NAME',
-         exp_net_xfer = 'NET OF TRANS AMOUNT',
-         expenditure = 'EXPENDED THRU 7/26/22'
-  ) 
+        # exp_net_xfer = 'NET OF TRANS AMOUNT',
+         expenditure = 'EXPENDED'
+  )
+
+
 
 ```
-
-# Variables
-
-__Using the comptrollers variables:__ 
-
-Detail Object is a department classification used by the State to group expenses.
-
-**Object:** e.g. 1100 - Personal Services; 880 - Debt Service; 8813 - Current Maturities-Interest
-
-**Group:**   
-
-**Type:** T - Statutory Transfers; 1 - Operations; 6 - Permanent Improvements; 8-Debt Service; 9-Refunds
-
-**Class:** ex. 402 - Income Tax Refunds, 407 - Sales Tax Refunds
-
-**Appropriation Category:** 8800 - Debt Service; 1129 - Employee Retirement Paid State
 
 
 # Data Creation and Cleaning
@@ -111,63 +96,37 @@ Detail Object is a department classification used by the State to group expenses
 
 Combine past years: All revenue files are in a `revenue` folder that I reference when I set the working directory. When adding new fiscal years, put the the newest year of data for revenue and expenditures in their respective folders. 
 
-__Pre-FY2022__
- 
 
+ 
 The code chunk below takes the .dta files for all fiscal years before FY 2022 and binds them together.  Variable names were manually changed by past researchers so that they were consistent across years. 
 
 Reads in dta file and leaves fund as a character. No longer have to worry about preserving leading zeros in categories like the fund numbers. State code used to force fund, source, and from_fund to be 4 digits long and preserve leading zeros and fund was 3 digits long with leading zeros.
 
-```{r create-rev-csv-FY21, include=FALSE}
-setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/revenue")
+```{r create-rev-csv-FY22, include=FALSE, eval=FALSE}
+setwd("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/revenue")
 
-allrevfiles21 = list.files(path = "C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/revenue",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows %>% filter(fy < 2022)
+allrevfiles22 = list.files(path = "C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/revenue",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows
 #Fy21: 62294 observations, 13 variables
 #FY22: 65094 obs, 13 vars
 
-#write_csv(allrevfiles21, "allrevfiles21.csv")
+write_csv(allrevfiles22, "allrevfiles22.csv")
 
 
 
 
-setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/expenditures")
+setwd("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/expenditures")
 
-allexpfiles21 = list.files(path = "C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/expenditures",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows %>% filter(fy < 2022)
+allexpfiles22 = list.files(path = "C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/expenditures",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows
 
 #fy21 213372 observations, 20 variables
 # fy22 225587 obs, 21 vars.
 
-#write_csv(allexpfiles21, "allexpfiles21.csv")
+write_csv(allexpfiles22, "allexpfiles22.csv")
 
 
 ```
 
 
-```{r create-rev-csv, eval = FALSE, include=FALSE}
-setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/revenue")
-
-# does all of stata code lines 1-514 of combining yearly data
-
-allrevfiles22 = list.files(path = "C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/revenue",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows
-#Fy21: 62295 observations, 13 variables
-#FY22: 65094 obs, 13 vars
-
-# write_csv(allrevfiles22, "allrevfiles22.csv")
-
-
-
-
-setwd("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/expenditures")
-
-allexpfiles22 = list.files(path = "C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/expenditures",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows
-
-#fy21 213372 observations, 20 variables
-# fy22 225587 obs, 21 vars.
-
-# write_csv(allexpfiles22, "allexpfiles22.csv")
-
-```
- 
 
 
 Code below reads in the csv files created in chunks above (allrevfiles.csv and allrexpfiles.csv). These files contain all years of data combined into one file BEFORE any recoding is done. Do not use this file for summing categories because it is just an in between step before recoding revenue and expenditure categories. 
@@ -180,36 +139,36 @@ allexpfiles22 <- read_csv("allexpfiles22.csv") #combined but not recoded
 
 ```
 
-Normally, when your receive the new fiscal year files from the Comptrollers office, you will need to change the variable names so that they are consistent with past years. This is an example of reading in the new file and changing the variable names. 
+Normally, when your receive the new fiscal year files from the Comptrollers office, you will need to change the variable names so that they are consistent with past years. This is an example of reading in the new file and changing the variable names. They seem to change almost every year in the file received from the FOIA so if the code breaks here, check to make sure that the columns you are trying to rename exist and are spelled correctly!
 
-For FY 2022 and after, .dta files can be avoided entirely and .csv files and R code will be used.All files before this year had been saved and passed on as .dta files for Stata code before the transition to R in Fall 2022  
+For FY 2023 and after, .dta files can be avoided entirely and .csv files and R code will be used. All files before this year had been saved and passed on as .dta files for Stata code before the transition to R in Fall 2022  
 
 Example code below: Read in excel file and rename columns so that it plays well with the other years' files.
 
 ```{r rename-variables}
-revenue_fy22 <- read_xlsx("Fis_Fut_Rev_2022.xlsx") %>% 
-  rename(fy = 'FISCAL YEAR',
-         fund = 'FUND #',
+revenue_fy22 <- read_xlsx("Fis_Fut_Rev_2022_Final.xlsx") %>% 
+  rename(fy = 'FY',
+         fund = 'FUND',
          fund_name = 'FUND NAME',
-         agency = 'AGENCY #',
+         agency = 'AGENCY',
          agency_name = 'AGENCY NAME',
-         source = 'REVENUE SOURCE #',
+         source = 'REVENUE SOURCE',
          source_name = 'REV SRC NAME',
-         receipts = 'REVENUE YTD AMOUNT'
+         receipts = 'AMOUNT'
   ) 
 
-exp_fy22 <- read_xlsx("Fis_Fut_Exp_2022.xlsx") %>% 
-  rename(fy = 'FISCAL YEAR',
-         fund = 'FUND #',
+exp_fy22 <- read_xlsx("Fis_Fut_Exp_2022_Final.xlsx") %>% 
+  rename(fy = 'FY',
+         fund = 'FUND',
          fund_name = 'FUND NAME',
-         agency = 'AGENCY #',
-         agency_name = 'AGENC .NAME',
-         appr_org = 'DIVISION',
-         org_name = 'DIVISION NAME',
-         obj_seq_type = 'APPROPRIATION #',
+         agency = 'AGENCY',
+         agency_name = 'AGENCY NAME',
+         appr_org = 'ORGANIZATION',
+         org_name = 'ORGANIZATION NAME',
+         obj_seq_type = 'APPROPRIATION',
          wh_approp_name = 'APPROPRIATION NAME',
-         exp_net_xfer = 'NET OF TRANS AMOUNT',
-         expenditure = 'EXPENDED THRU 7/26/22'
+        # exp_net_xfer = 'NET OF TRANS AMOUNT',
+         expenditure = 'EXPENDED'
   ) 
 
 # %>%
@@ -242,8 +201,13 @@ Identify new and reused funds for newest fiscal year. Recode funds to take into 
 
 > Clarify and add steps for identifying new and reused funds.
 
-```{r}
 
+**New Agencies, Funds, and Organizations from Expenditure files:**
+
+- Using the code below, I found 2 agencies, multiple funds, and a couple organizations that had not been specifically mentioned in the funds_ab_in file.
+- One new org name and org number combo has an expenditure of $600 million for pensions payment. 
+
+```{r}
 #### From Expenditure Data #####
 
 # agencies referenced in any year before 2020:
@@ -280,10 +244,12 @@ orgs22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(appr_org = as.charact
 
 # 4 org number and org name combos are new for FY2022:
 anti_join(orgs22, orgs_past, by = c("appr_org", "org_name")) %>% arrange(appr_org)
+```
 
 
+**New Revenue Funds, Sources, and New Agencies:**
 
-
+```{r}
 #### From Revenue Data ####
 
 
@@ -322,6 +288,7 @@ anti_join(sources22, sources_past, by = c("source", "source_name")) %>% arrange(
 
 Sources 2737 through 2756 were not found in the IOC_source file so I added them. They do NOT have a rev_type until the Fiscal Futures researchers discuss which revenue type the sources fall under and if they should be included in the analysis in general.
 
+### Recoding New and Reused Funds
 
 For funds that were reused once, a 9 replaces the 0 as the first digit. If reused twice, then the first two values are 10.   
 - Ex. 0350 --> 9350 because its use changed.   
@@ -390,7 +357,7 @@ exp_1998_2022 <- allexpfiles22 %>%
 
 
 ```{r create-exp_temp, warning = FALSE, message = FALSE}
-funds_ab_in_2022 = readxl::read_excel("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/funds_ab_in_2022.xlsx")
+funds_ab_in_2022 = readxl::read_excel("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/funds_ab_in_2022.xlsx")
 
 
 exp_temp <- exp_1998_2022 %>% 
@@ -462,6 +429,10 @@ tax_refund <- tax_refund_long %>%
   mutate_all(~replace_na(.,0)) %>%
   arrange(fy)
 
+tax_refund %>% pivot_longer( ref_02:ref_35, names_to = "Refund Type", values_to = "Amount") %>%
+  ggplot()+
+  geom_line(aes(x=fy,y=Amount, group = `Refund Type`, color = `Refund Type`))+
+  labs(title = "Refund Types", caption = "Refunds are excluded from Expenditure totals and instead subtracted from Revenue totals")
 
 # remove the items we recoded in tax_refund_long
 exp_temp <- exp_temp %>% filter(refund == "not refund")
@@ -475,6 +446,9 @@ exp_temp <- exp_temp %>% filter(refund == "not refund")
 
 ### Pension Expenditures
 
+> There is a 600 million payment into org_name == "Retirement System PMT Admin"! I think we've included large pension expenditures in the past, should this be included??
+
+> Plus 300 million pension stabilization payment from fund 0319, object == 1900 for lump sums and other purposes.
 
 State payments to the following pension systems:  
 
@@ -487,8 +461,12 @@ State payments to the following pension systems:
 
 __Check what is included in pensions:__
 
-- object = 4431 catches most pension items
+- object = 4431 catches most pension items (payments into pension fund)   
+  - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
 - object = 1298 is purchase of investments and is excluded from analysis except for a couple exceptions during 2010 and 2011  
+  - Why only for those years and not other years?
+- object == 4430 is for pensions, annuities, and benefits
+- object = 1900 for pension stabilization under lump sums
 
 ```{r pension-check, eval = FALSE, include=FALSE}
 # check what is being included in pensions
@@ -503,17 +481,20 @@ pension_check <- exp_temp %>%
             TRUE ~ 0)) %>% 
   
   mutate(pension = case_when(     # objects were weird for 2010 and 2011
-   (object=="4431" & fund=="0473" & (fy==2010 | fy==2011)) ~ 3, # teachers retirement system,  
+   (object=="4431" & fund=="0473")  ~ 3, # teachers retirement system,  
   #  obj_seq_type == "44310055" ~ 3, # teachers retirement system in 2010 and 2011. 
-   (object=="1298" & (fy==2010 | fy==2011) & (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, # judges retirement 
-   # obj_seq_type == "12980055" ~ 3, # judge retirement contriubtions during 2010 and 2011
+   (object=="1298" & 
+      #(fy==2010 | fy==2011) & 
+      (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, # judges retirement 
+   # obj_seq_type == "12980055" ~ 3, # judge retirement contributions during 2010 and 2011
+  object == "1900" & fund == "0319" ~ 5, # pension stabilization fund in 2022 
     TRUE ~ pension)) %>% 
   filter(pension > 0 )
 
 
 pension_check 
 
-# write_csv(pension_check, "pension_check.csv")
+write_csv(pension_check, "pension_checkfy22v3.csv")
 
 ## taking care of Pension Obligation Bond proceeds
 
@@ -529,9 +510,7 @@ pension_check <- pension_check %>%
 
 table(pension_check$pension)
 
-pension_check %>% filter(pension == 2 ) # subtract these from expenditures OR add them as an "Other Revenue" source at end of code?
-
-pension_check %>% filter(pension == 2 ) %>% group_by(fy) %>% summarise(pob_sum = sum(expenditure))
+POBs <- exp_temp %>% filter(fund == "0825")
 
 ```
 
@@ -543,18 +522,22 @@ exp_temp <-  exp_temp %>%
   mutate(pension = case_when( 
     
   # objects were weird for 2010 and 2011 for teacher and judge retirement system
-  (object=="4431" & fund=="0473" &  (fy==2010 | fy==2011)) ~ 3, # teachers retirement system, 
-  (object=="1298" & (fy==2010 | fy==2011) & (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement
+      (object=="4431" & fund=="0473") ~ 3, # teachers retirement system, 
+ # Was this: (object=="4431" & fund=="0473" &  (fy==2010 | fy==2011)) ~ 3, # teachers retirement system, 
+ 
+  (object=="1298" & 
+     #(fy==2010 | fy==2011) & 
+     (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement
  
   (object=="4431" | (object>"1159" & object<"1166") & fund != "0183" & fund != "0193"  ) ~ 1, # 4431 = easy to find pension items
    # objects 1159 to 1166 are all considered Retirement by Comptroller 
   # object == 1167 also appears to be Other Retirement but isn't used yet
+ fund == "0319" & obj_seq_type == "19930005" ~ 1, #pension stabilization fund
                                         TRUE ~ 0)) 
 
 table(exp_temp$pension) # same number of total observations > 0 as pension_check
 ```
 
-~~POB-funded contributions to JRS, SERS, GARS, and TRS must be accounted for in a different way: Pension = 2 represents retirement pension payments paid for with POB-funded contributions that were excluded from the fiscal futures analysis by default ( in_ff was 0 because bond financed funds are not sustainable cash flows) but should be included and added to the revenue side under "Other Revenues" in later steps.~~  
 
 
 Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
@@ -578,7 +561,12 @@ exp_temp <- exp_temp %>%
   mutate(agency = ifelse(pension>0, "901", as.character(agency)),
          agency_name = ifelse(agency == "901", "State Pension Contributions", as.character(agency_name)))
 
-
+exp_temp %>% 
+  filter(agency == '901') %>%  group_by(fy) %>% summarize(expenditure = sum(expenditure)) %>%
+  ggplot(aes(x=fy, y=expenditure)) +
+  geom_line() + 
+  labs (title = "Pension Expenditures", caption = "Includes objects 1160-1165, 1298, 1900, and 4431.
+        Object = 4431 includes most pension expenditures.")
 ```
 
 
@@ -1091,7 +1079,7 @@ You need to update the funds_ab_in and ioc_source_type file every year!
 rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source)
 
 # need to update the ioc_source_type file every year! 
-ioc_source_type <- readxl::read_xlsx("C:/Users/aleaw/OneDrive/Desktop/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/ioc_source_updated22_AWM.xlsx")
+ioc_source_type <- readxl::read_xlsx("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/ioc_source_updated22_AWM.xlsx")
 
 rev_temp <- left_join(rev_temp, ioc_source_type, by = "source")
 # automatically used source, source name does not match for the join to work using source_name
@@ -1293,7 +1281,7 @@ rm(exp_1998_2022)
 ```{r revenue-78-check, include=FALSE, eval = FALSE}
 
 filter(rev_temp) %>% 
-  filter(rev_type == "78"& fy == 2021) %>%  write.csv("rev78-R.csv")
+  filter(fy == 2022 | fy == 2021) %>%  write.csv("rev-recoded-2022.csv")
   #group_by(fund_name) %>% 
  # summarize(sum = sum(receipts)) %>% arrange(-sum)
 
@@ -1944,10 +1932,3 @@ dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long,
 
 #write.xlsx(dataset_names, file = 'summary_file_FY2022.xlsx')
 ```
-
-
-```{r}
-rev_long %>% group_by(Category,Category_name) %>% summarize(Receipts = sum(Dollars))%>% unique()
-
-```
-
