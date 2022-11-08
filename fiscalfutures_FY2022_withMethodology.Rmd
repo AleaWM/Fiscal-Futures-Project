@@ -373,8 +373,10 @@ exp_temp <- exp_1998_2022 %>%
 
 ```{r remove-all_obs_df, include=FALSE}
 # remove from computer memory to free up space (in case your computer needs it)
-rm(allexpfiles)
-rm(allrevfiles)
+rm(allexpfiles22)
+rm(allrevfiles22)
+rm(exp_fy22)
+rm(revenue_fy22)
 ```
 
 Update Agencies: Early agencies replaced by successors
@@ -446,9 +448,9 @@ exp_temp <- exp_temp %>% filter(refund == "not refund")
 
 ### Pension Expenditures
 
-> There is a 600 million payment into org_name == "Retirement System PMT Admin"! I think we've included large pension expenditures in the past, should this be included??
 
-> Plus 300 million pension stabilization payment from fund 0319, object == 1900 for lump sums and other purposes.
+
+> 300 million pension stabilization payment from fund 0319, object == 1900 for lump sums and other purposes.
 
 State payments to the following pension systems:  
 
@@ -461,20 +463,44 @@ State payments to the following pension systems:
 
 __Check what is included in pensions:__
 
-- object = 4431 catches most pension items (payments into pension fund)   
+- object = 4431 catches most pension items **(payments into pension fund)**   
   - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
 - object = 1298 is purchase of investments and is excluded from analysis except for a couple exceptions during 2010 and 2011  
   - Why only for those years and not other years?
 - object == 4430 is for pensions, annuities, and benefits
 - object = 1900 for pension stabilization under lump sums
 
-```{r pension-check, eval = FALSE, include=FALSE}
+```{r pension-check}
 # check what is being included in pensions
 
 pension_check <- exp_temp %>% 
   mutate(pension = case_when( 
-     #   (object=="4431" | (object>"1159" & object<"1166") ) ~ 1, # 4431 = easy to find pension items
-       (object=="4431" | (obj_seq_type > "11590000" & obj_seq_type < "11660000") ) ~ 1, 
+    (object=="4430") ~ "Object 4430 - OUT", # pensions, annuities, benefits
+       (object=="4431") ~ "Object 4431 - IN", # 4431 = state payments into pension fund
+        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "Retirement Objects",
+
+    # objects 1159 to 1166 are all considered Retirement by Comptroller 
+    # object == 1167 also appears to be Other Retirement but isn't used yet
+            TRUE ~ "0")) %>% 
+  
+  mutate(pension = case_when(
+    (object=="1298" & (fund=="0477" | fund=="0479" | fund=="0481")) ~ "Purchase of Investments", # judges retirement "Purchase of investments"
+  object == "1900" & fund == "0319" ~ "Pension Stabilization", # pension stabilization fund in 2022 
+    TRUE ~ as.character(pension)) ) %>% 
+  filter(pension != 0 )
+
+pension_check %>% group_by(fy, pension) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, color = pension)) + 
+  geom_line() + 
+  labs (title = "Pension Fund Payments In and Retirement Benefits Out", caption = "Includes items from objects 1160-1165, 1298, and 1900 as pension expenditures (retirement benefits).
+        Object = 4431 includes state payments INTO pension Fund.")
+
+pension_check2 <- exp_temp %>% 
+  mutate(pension = case_when( 
+     #   (object=="4431" | (object>"1159" & object<"1166") ) ~ 1, 
+       (object=="4431"  ) ~ 1, # 4431 = payments into pension fund
+        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ 2,
 
     # objects 1159 to 1166 are all considered Retirement by Comptroller 
     # object == 1167 also appears to be Other Retirement but isn't used yet
@@ -492,13 +518,13 @@ pension_check <- exp_temp %>%
   filter(pension > 0 )
 
 
-pension_check 
+pension_check2 
 
-write_csv(pension_check, "pension_checkfy22v3.csv")
+#write_csv(pension_check, "pension_checkfy22v3.csv")
 
 ## taking care of Pension Obligation Bond proceeds
 
-pension_check <- pension_check %>% 
+pension_check2 <- pension_check2 %>% 
   # change object for 2010 and 2011, retirement expenditures were bond proceeds
   mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", as.character(object))) %>% # changes weird teacher & judge retirement system  pensions object to normal pension object 4431
   mutate(pension =  ifelse(pension == 1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded due to being bond proceeds ?
@@ -508,9 +534,8 @@ pension_check <- pension_check %>%
 # create file with all pension items to find any mistakes
 #pension_check %>% write_csv("all_pensions.csv")
 
-table(pension_check$pension)
+table(pension_check2$pension)
 
-POBs <- exp_temp %>% filter(fund == "0825")
 
 ```
 
@@ -522,20 +547,25 @@ exp_temp <-  exp_temp %>%
   mutate(pension = case_when( 
     
   # objects were weird for 2010 and 2011 for teacher and judge retirement system
-      (object=="4431" & fund=="0473") ~ 3, # teachers retirement system, 
+     # (object=="4431" & fund=="0473") ~ 3, # teachers retirement system, 
  # Was this: (object=="4431" & fund=="0473" &  (fy==2010 | fy==2011)) ~ 3, # teachers retirement system, 
- 
-  (object=="1298" & 
-     #(fy==2010 | fy==2011) & 
-     (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement
- 
-  (object=="4431" | (object>"1159" & object<"1166") & fund != "0183" & fund != "0193"  ) ~ 1, # 4431 = easy to find pension items
-   # objects 1159 to 1166 are all considered Retirement by Comptroller 
+   (object=="4431") ~ 1, # 4431 = easy to find pension payments INTO fund
+   
+  (object>"1159" & object<"1166") & fund != "0183" & fund != "0193"   ~ 2, 
+   # objects 1159 to 1166 are all considered Retirement by Comptroller, OUT 
   # object == 1167 also appears to be Other Retirement but isn't used yet
- fund == "0319" & obj_seq_type == "19930005" ~ 1, #pension stabilization fund
-                                        TRUE ~ 0)) 
+ 
+  (object=="1298" &  # Purchase of Investments
+     #(fy==2010 | fy==2011) & 
+     (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement OUT of fund
+ 
+
+ fund == "0319" ~ 4, #pension stabilization fund IN?
+                                        TRUE ~ 0) )
 
 table(exp_temp$pension) # same number of total observations > 0 as pension_check
+
+
 ```
 
 
@@ -548,29 +578,31 @@ Description of Pension Obligation Acceleration Bond at this [link](https://www.i
 
 exp_temp <- exp_temp %>% 
   # change object for 2010 and 2011, retirement expenditures were bond proceeds
-  mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", object)) %>% 
+  mutate(object = ifelse((pension >0 & in_ff == "0"), "4431", object)) %>% 
   # changes weird teacher & judge retirement system  pensions object to normal pension object 4431
-  mutate(pension =  ifelse(pension ==1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded. 
-  mutate(in_ff = ifelse((pension ==2 | pension ==3 ), "1", in_ff))
+  mutate(pension =  ifelse(pension >0 & in_ff == "0", 6, pension)) %>% # coded as 2 if it was supposed to be excluded. 
+  mutate(in_ff = ifelse(pension>0, "1", in_ff))
 
 table(exp_temp$pension) 
 
 
-# all other pensions objects (1 and 3) codes get agency code 901 for State Pension Contributions
+# all other pensions objects  codes get agency code 901 for State Pension Contributions
 exp_temp <- exp_temp %>% 
   mutate(agency = ifelse(pension>0, "901", as.character(agency)),
          agency_name = ifelse(agency == "901", "State Pension Contributions", as.character(agency_name)))
 
 exp_temp %>% 
-  filter(agency == '901') %>%  group_by(fy) %>% summarize(expenditure = sum(expenditure)) %>%
-  ggplot(aes(x=fy, y=expenditure)) +
+ filter(pension > 0) %>%  
+  mutate(pension = as.factor(pension)) %>%
+  group_by(fy, pension) %>% 
+  summarize(expenditure = sum(expenditure, na.rm=TRUE)) %>%
+  ggplot(aes(x=fy, y=expenditure, color = pension)) +
   geom_line() + 
-  labs (title = "Pension Expenditures", caption = "Includes objects 1160-1165, 1298, 1900, and 4431.
-        Object = 4431 includes most pension expenditures.")
+  labs (title = "Pension Expenditures", caption = "Includes objects 1160-1165, 1298, 1900, and 4431 as pension expenditures.
+        Object = 4431 includes payments INTO pension Fund.")
 ```
 
 
-Pension2 used to be added to revenue side as All Other Revenue sources but as of Oct 2022, we can not determine why that was done and are no longer doing that.
 
 ### Drop Interfund transfers
 
