@@ -735,8 +735,6 @@ The five corresponding revenue items are:
 • Local share of Motor Fuel Tax 
   - Transportation Renewal Fund 0952  
 
-> Completed: Add the mft mentioned in GOMB email to code
-
 ```{r transfers-to-local}
 exp_temp <- exp_temp %>% mutate(
   agency = case_when(fund=="0515" & object=="4470" & type=="08" ~ "971", # income tax 
@@ -794,9 +792,7 @@ exp_temp <- exp_temp %>% filter(in_ff == 1) # drops in_ff = 0 funds AFTER dealin
 
 Debt Service expenditures include interest payment on both short-term and long-term debt. We do not include escrow or principal payments. 
 
-**Decision from Sept 30 2022:**
-
-We are no longer including short term principal payments as a cost; only interest on short term borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond proceeds as revenues. This caused expenditures to be inflated because we were essentially counting debt twice - the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
+**Decision from Sept 30 2022:** We are no longer including short term principal payments as a cost; only interest on short term borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond proceeds as revenues. This caused expenditures to be inflated because we were essentially counting debt twice - the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
 
 - Include interest for long-term debt that likely funds capital projects.  
 
@@ -806,16 +802,15 @@ We are no longer including short term principal payments as a cost; only interes
 8800 is for capital projects (including the Tollway) **INCLUDE as cost - Note: debt principle and interest are both included because they are combined in the data observations; bond proceeds are not considered a revenue source**  
 
 
-- ~~Exclude:~~ Bond principle payments: obj_seq_type == 88110008   
-  - **Exclude based on Merriman's meeting. Run it both ways to compare output to make sure we made the correct decision.**
+- Exclude: Bond principle payments: obj_seq_type == 88110008   
 - Exclude: Short term borrowing principle: obj_seq_type == 88110108  
   - except for 2021 and 2022 which have GO Bond principle under this code????
   - based on the numbers, I think it is still short term principle with wrong appropriation name
 - Include: General Obligation Bond Interest: obj_seq_type == 88130000 & 88130008  
-- Include: Interest for short-term borrowing: 88130108
+- Include: Interest on short-term borrowing: 88130108
 - Exclude: Escrow payment == 88410008
 - Include: Build IL Bonds principal AND interest 
-  - Tollway is obj_seq_type == 88000055, filter out fund == 0455 to avoid tollway debt  
+  - Tollway is obj_seq_type == 88000055, filter out fund == 0455 to remove tollway  
   - fund == 0455 is the IL State Toll Highway fund, items mostly for operations and maintenance
 
 ```{r tollway, include = FALSE}
@@ -823,16 +818,26 @@ tollway <- exp_temp %>% filter(fund == "0455")
 tollway_debt <- exp_temp %>%filter(object == "8800")
 
 #tollway debt principal and interest
-exp_temp %>%filter(object == "8800") %>% group_by(fy) %>% summarize(sum=sum(expenditure)) %>% arrange(-fy)
+exp_temp %>%filter(object == "8800") %>% group_by(fy) %>% summarize(sum=sum(expenditure)) %>% 
+  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Object 8800: Tollway Debt Principal and Interest")
 
 
-rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source)
+rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source) 
 
 # look at Illinois tollway bond proceeds and debt service: 
 # rev_temp %>% filter(fund == "0455") # examine items in fund 0455
 exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
 
 rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts)) %>% arrange(-fy)
+
+
+exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 from Expenditure: Tollway Debt Service ", caption = "Data from IOC Expenditure Files. Fund 0455 is the IL State Tollway")
+
+
+# is this for all revenues, not just bond proceeds?
+rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts))%>% 
+  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 from Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
+
 
 
 # Tollway agency expenditures = SAME as filtering by fund == 0455
@@ -1133,12 +1138,6 @@ rev_temp <- rev_temp %>%
     rev_type = ifelse(rev_type=="6", "06", rev_type),
     rev_type = ifelse(rev_type=="9", "09", rev_type)) 
 
-
-rev_temp %>% 
-  group_by(fy, rev_type_name) %>% 
-  summarise(receipts = sum(receipts, na.rm = TRUE)/1000000) %>% 
-  pivot_wider(names_from = rev_type_name, values_from = receipts)
-
 rev_temp %>% 
   filter(rev_type == "58" | rev_type == "59" | rev_type == "57") %>% 
   group_by(fy, rev_type, rev_type_name) %>% 
@@ -1147,7 +1146,7 @@ rev_temp %>%
   geom_line(aes(x=fy, y=receipts,color=rev_type)) +
   labs(title = "Federal to State Transfers", 
        y = "Millions of Dollars", x = "",
-       caption = "57 = Other; 58 = Transportation; 59=Medicaid Reimubursements")
+       caption = "57 = Other; 58 = Medicaid Reimbursements; 59=Transportation")
 ```
 
 ### Pension Contributions
