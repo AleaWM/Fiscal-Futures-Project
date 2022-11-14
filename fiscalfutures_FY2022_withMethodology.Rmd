@@ -1729,7 +1729,7 @@ rev_long %>%
 ```
 
 
-Dot Plot Attempt:
+__Changes in Categories - 2021 to 2022__  Dot Plot Attempt:
 ```{r}
 rev_long %>%
     filter(Year == "2022" | Year == "2021") %>%
