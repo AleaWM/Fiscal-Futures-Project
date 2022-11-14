@@ -1565,8 +1565,8 @@ exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Categor
              T ~ "CHECK ME!")
            )
 
- # write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
- # write_csv(rev_long, "revenue_recoded_long_FY22.csv")
+#write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
+#write_csv(rev_long, "revenue_recoded_long_FY22.csv")
 
 aggregated_totals_long <- rbind(rev_long, exp_long)
 aggregated_totals_long
@@ -1585,7 +1585,7 @@ year_totals <- aggregated_totals_long %>%
 
 year_totals
 
-# write_csv(aggregated_totals_long, "aggregated_totals.csv")
+#write_csv(aggregated_totals_long, "aggregated_totals.csv")
 
 ```
 
@@ -1729,7 +1729,54 @@ rev_long %>%
 ```
 
 
+Dot Plot Attempt:
+```{r}
+rev_long %>%
+    filter(Year == "2022" | Year == "2021") %>%
+  mutate(Year = as.character(Year)) %>%
+  ggplot(aes(x = Dollars, y = reorder(Category, Dollars))) +
+  geom_line(aes(group = Category) )+
+    geom_text(aes(x = ifelse(Year == "2022", as.numeric(Dollars), NA),  label = ifelse(Year == "2022", Category_name, "")),  
+            hjust = -0.2,
+            size = 2.8) +
+         geom_point(aes(color = Year), size=2)  +
+  labs(title = "2021 to 2022 Change in Revenue", x = "Millions of Dollars" , y = "",  caption = "")  +
+   scale_color_brewer(palette = "paired", labels = c("FY 2021", "FY 2022"))+
+   theme_classic()+ 
+    theme(
+   legend.position = "bottom" ,
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.line.y.left  = element_blank(),
+  axis.line.x = element_blank(),
+    axis.title.y = element_blank(),
+  axis.ticks.x = element_blank())+
+  scale_x_continuous(limits = c(0, 30000))
 
+
+
+exp_long %>%
+    filter(Year == "2022" | Year == "2021") %>%
+  mutate(Year = as.character(Year)) %>%
+  ggplot(aes(x = Dollars, y = reorder(Category, Dollars))) +
+  geom_line(aes(group = Category) )+
+    geom_text(aes(x = ifelse(Year == "2022", as.numeric(Dollars), NA),  label = ifelse(Year == "2022", Category_name, "")),  
+            hjust = -0.2,
+            size = 2.8) +
+         geom_point(aes(color = Year), size=2)  +
+  labs(title = "2021 to 2022 Change in Expenditures", x = "Millions of Dollars" , y = "",  caption = "")  +
+   scale_color_brewer(palette = "paired", labels = c("FY 2021", "FY 2022"))+
+   theme_classic()+ 
+    theme(
+    legend.position = "bottom" ,
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.line.y.left  = element_blank(),
+  axis.line.x = element_blank(),
+    axis.title.y = element_blank(),
+  axis.ticks.x = element_blank())+
+  scale_x_continuous(limits = c(0, 30000))
+```
 
 
 ```{r eval = FALSE, include = FALSE}
