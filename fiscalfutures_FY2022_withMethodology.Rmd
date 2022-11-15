@@ -415,7 +415,6 @@ tax_refund %>% pivot_longer( ref_02:ref_35, names_to = "Refund Type", values_to 
 # remove the items we recoded in tax_refund_long
 exp_temp <- exp_temp %>% filter(refund == "not refund")
 
-#should be 156 fewer observations
 
 ```
 
@@ -426,7 +425,7 @@ exp_temp <- exp_temp %>% filter(refund == "not refund")
 
 
 
-> 300 million pension stabilization payment from fund 0319, object == 1900 for lump sums and other purposes.
+> 300 million pension stabilization payment from fund 0319, object == 1900 for lump sums and other purposes. This is a type of pension contribution, right?
 
 State payments to the following pension systems:  
 
@@ -456,7 +455,7 @@ pension_check <- exp_temp %>%
   mutate(pension = case_when( 
     (object=="4430") ~ "Object 4430 - Benefits Paid; DROPPED", # pensions, annuities, benefits
     (object=="4431") ~ "Object 4431 - State Pension Contributions", # 4431 = state payments into pension fund
-        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "Retirement Objects; DROPPED",
+        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "IOC Retirement Object Categories; DROPPED",
     # objects 1159 to 1166 are all considered Retirement by Comptroller 
     
             TRUE ~ "0")) %>%  # All other observations coded as 0 for non-pension items
@@ -464,7 +463,9 @@ pension_check <- exp_temp %>%
   # recodes specific instances of code anomalies from past years:
   mutate(pension = case_when(
         # judges retirement "Purchase of investments" in 2010 and 2011
-    (object=="1298" & (fy==2010 | fy==2011) & (fund=="0477" | fund=="0479" | fund=="0481")) ~ "Purchase of Investments", 
+    (object=="1298" & 
+       #(fy==2010 | fy==2011) & 
+       (fund=="0477" | fund=="0479" | fund=="0481")) ~ "Purchase of Investments; DROPPED", 
     
       # pension stabilization fund in 2022 
   object == "1900" & fund == "0319" ~ "Fund 0319-Pension Stabilization", 
@@ -494,7 +495,7 @@ pension_check2 <- exp_temp %>%
    (object=="4431" & fund=="0473")  ~ 3, # teachers retirement system,  
   #  obj_seq_type == "44310055" ~ 3, # teachers retirement system in 2010 and 2011. 
    (object=="1298" & 
-      #(fy==2010 | fy==2011) & 
+      #(fy==2010 | fy==2011) &  # for the two weird years based on past code
       (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, # judges retirement 
    # obj_seq_type == "12980055" ~ 3, # judge retirement contributions during 2010 and 2011
   object == "1900" & fund == "0319" ~ 5, # pension stabilization fund in 2022 
@@ -770,7 +771,7 @@ transfers_long <- exp_temp %>%
 transfers_long %>% 
   group_by(agency_name, group, fy) %>% 
   summarize(expenditure = sum(expenditure, na.rm=TRUE) )%>% 
-  ggplot() + geom_line(aes(x=fy, y = expenditure, color=agency_name)) + labs(title = "Transfers to Local Governments")
+  ggplot() + geom_line(aes(x=fy, y = expenditure, color=agency_name)) + labs(title = "Transfers to Local Governments", caption = "Data Source: Illinois Office of the Comptroller")
 
 transfers <- transfers_long %>%
   group_by(fy, group ) %>%
@@ -792,26 +793,27 @@ exp_temp <- exp_temp %>% filter(in_ff == 1) # drops in_ff = 0 funds AFTER dealin
 
 Debt Service expenditures include interest payment on both short-term and long-term debt. We do not include escrow or principal payments. 
 
-**Decision from Sept 30 2022:** We are no longer including short term principal payments as a cost; only interest on short term borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond proceeds as revenues. This caused expenditures to be inflated because we were essentially counting debt twice - the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
+**Decision from Sept 30 2022:** We are no longer including short term principal payments as a cost; only interest on borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond proceeds as revenues. This caused expenditures to be inflated because we were essentially counting debt twice - the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
 
-- Include interest for long-term debt that likely funds capital projects.  
+Logic: interest for long-term debt that likely funds capital projects.  
 
+**Objects:**    
 8813 interest **INCLUDE AS COST**  
-8811 is for principle **EXCLUDE from analysis**  
-8841 is for escrow payments **EXCLUDE from analysis**  
-8800 is for capital projects (including the Tollway) **INCLUDE as cost - Note: debt principle and interest are both included because they are combined in the data observations; bond proceeds are not considered a revenue source**  
+8811 is for principle **EXCLUDE from aggregate debt expenditure**  
+8841 is for escrow payments **EXCLUDE from aggregate debt expenditure**  
+8800 is for capital projects (Build Illinois Bonds, Civic Center, Tollway **EXCLUDE tollway in debt cost**
+  - Note: debt principle and interest are both included in capital projects because they are combined in the data observations; bond proceeds are not considered a revenue source 
 
 
+**Obj_seq_type:**       
 - Exclude: Bond principle payments: obj_seq_type == 88110008   
 - Exclude: Short term borrowing principle: obj_seq_type == 88110108  
-  - except for 2021 and 2022 which have GO Bond principle under this code????
-  - based on the numbers, I think it is still short term principle with wrong appropriation name
 - Include: General Obligation Bond Interest: obj_seq_type == 88130000 & 88130008  
-- Include: Interest on short-term borrowing: 88130108
-- Exclude: Escrow payment == 88410008
-- Include: Build IL Bonds principal AND interest 
+- Include: Interest on short-term borrowing: 88130108  
+- Exclude: Escrow payment == 88410008  
+- Include: Build IL Bonds principal AND interest  
   - Tollway is obj_seq_type == 88000055, filter out fund == 0455 to remove tollway  
-  - fund == 0455 is the IL State Toll Highway fund, items mostly for operations and maintenance
+  - fund == 0455 is the IL State Toll Highway fund, items mostly for operations and maintenance  
 
 ```{r tollway, include = FALSE}
 tollway <- exp_temp %>% filter(fund == "0455")
@@ -1318,12 +1320,16 @@ filter(rev_temp) %>%
 # Pivoting and Merging
 
 - State employee contributions (eehc from eehc2_amt) should be subtracted from state employee healthcare expenditures. State employer contributions should be dropped to avoid double counting costs.   
+- State employee health insurance premiums should be subtracted from state healthcare costs for the net healthcare cost. 
+- Subtract employee insurance premiums from State Employee Healthcare Expenditures (group == 904) - Employee Premiums = Actual state healthcare costs.  
 
-- Subtract employee insurance premiums from 904 (State Employee Healthcare Expenditures - Employee Premiums = Actual state healthcare costs. Subtract med_option_amt_recent in med_option_recent from exp_904 in ff_exp). 
-
-- **Not doing anymore:** ~~State pension contributions funded by bonds (pension_amt from pension2_fy22) should be added to Other revenues.~~    
-  - **Maybe right??**: Employee contributions should be subtracted from from state pension costs. 
-  - exp_901 - rev_51? even though rev_type == 51 (retirement contributions) is dropped based on past code. 
+  - $ff\_exp\$exp904 - med\_option\$med\_option\_amt\_recent = state healthcare costs$
+  
+- Employee contributions should be subtracted from from state pension costs. 
+    -$ff\_exp\$exp_901 - rev\_51 = state pension costs$  even though rev_type == 51 (retirement contributions) is dropped based on past code.
+    
+    - _Stata code, no longer doing: State pension contributions funded by bonds (pension_amt from pension2_fy22) should be added to Other revenues_   
+ 
 
 
 - Local Government Transfers (exp_970) should be on the expenditure side
@@ -1332,7 +1338,7 @@ filter(rev_temp) %>%
 
 ## Revenues
 
-I chose to drop rev_76 for Transfers in and Out because I do not understand why that step occurs. If I keep rev_76 in and include it in rev_78 for All Other Revenues, then the difference between R and Stata code should be resolved.  
+I chose to drop rev_76 for Transfers in and Out because I do not understand why that step occurs in the previously used Stata code. If I keep rev_76 in and include it in rev_78 for All Other Revenues, then the difference between R and Stata code should be resolved.  
   - after Stata code is edited to drop employee insurance premium revenue from all other revenues. Currently it keeps it in AND subtracts it from state healthcare expenditures.  
 
 ```{r final-ffrev-table}
@@ -1419,7 +1425,7 @@ aggregate_rev_labels
 
 ## Expenditures
 
-Create state employee healthcare costs that reflects the health costs minus the optional insurance premiums that came in (904_new = 904 - med_option_amt_recent).
+Create state employee healthcare costs that reflects the health costs minus the optional insurance premiums that came in ($904\_new = 904 - med\_option\_amt\_recent$).
 
 Create exp_970 for all local government transfers (exp_971 + exp_972  + exp_975 + exp_976).
 
