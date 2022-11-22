@@ -30,7 +30,7 @@ library(geofacet)
 library(janitor)
 
 
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
 ```
 
 # Data Creation and Cleaning
@@ -735,16 +735,20 @@ The five corresponding revenue items are:
 • Personal Property Replacement Tax on Public Utilities  
 • Local share of Motor Fuel Tax 
   - Transportation Renewal Fund 0952  
+  
+Notes - these don't exit:
+- fund=="0627" & object=="4472"~ "976" # public transportation   
+- fund=="0648" & object=="4472" ~ "976",
 
 ```{r transfers-to-local}
 exp_temp <- exp_temp %>% mutate(
-  agency = case_when(fund=="0515" & object=="4470" & type=="08" ~ "971", # income tax 
-                     fund=="0515" & object=="4491" & type=="08" & sequence=="00" ~ "971", 
+  agency = case_when(fund=="0515" & object=="4470" & type=="08" ~ "971", # income tax to local governments
+                     fund=="0515" & object=="4491" & type=="08" & sequence=="00" ~ "971", # object is shared revenue payments
                      fund=="0802" & object=="4491" ~ "972", #pprt transfer
                      fund=="0515" & object=="4491" & type=="08" & sequence=="01" ~ "976", #gst to local
-                     fund=="0627" & object=="4472"~ "976" ,
-                     fund=="0648" & object=="4472" ~ "976",
-                     fund=="0515" & object=="4470" & type=="00" ~ "976",
+                     fund=="0627" & object=="4472"~ "976" , # public transportation fund but no observations exist
+                     fund=="0648" & object=="4472" ~ "976", # downstate public transportation, but doesn't exist
+                     fund=="0515" & object=="4470" & type=="00" ~ "976", # object 4470 is grants to local governments
                     object=="4491" & (fund=="0188"|fund=="0189") ~ "976",
                      fund=="0187" & object=="4470" ~ "976",
                      fund=="0186" & object=="4470" ~ "976",
@@ -754,13 +758,11 @@ exp_temp <- exp_temp %>% mutate(
   
   agency_name = case_when(agency == "971"~ "INCOME TAX 1/10 TO LOCAL",
                           agency == "972" ~ "PPRT TRANSFER TO LOCAL",
-                          agency == "976" ~ "GST TO LOCAL",
                           agency == "975" ~ "MFT TO LOCAL",
+                          agency == "976" ~ "GST TO LOCAL",
                           TRUE~as.character(agency_name)),
   group = ifelse(agency>"970" & agency < "977", as.character(agency), as.character(group)))
 
-
-table(exp_temp$group)
 ```
 
 
@@ -795,7 +797,6 @@ Debt Service expenditures include interest payment on both short-term and long-t
 
 **Decision from Sept 30 2022:** We are no longer including short term principal payments as a cost; only interest on borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond proceeds as revenues. This caused expenditures to be inflated because we were essentially counting debt twice - the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
 
-Logic: interest for long-term debt that likely funds capital projects.  
 
 **Objects:**    
 8813 interest **INCLUDE AS COST**  
@@ -815,32 +816,35 @@ Logic: interest for long-term debt that likely funds capital projects.
   - Tollway is obj_seq_type == 88000055, filter out fund == 0455 to remove tollway  
   - fund == 0455 is the IL State Toll Highway fund, items mostly for operations and maintenance  
 
-```{r tollway, include = FALSE}
-tollway <- exp_temp %>% filter(fund == "0455")
-tollway_debt <- exp_temp %>%filter(object == "8800")
+```{r tollway}
+tollway <- exp_temp %>% filter(fund == "0455") #all tollway expenditures
+tollway_debt <- exp_temp %>%filter(object == "8800") # ALL Capital projects debt service
 
-#tollway debt principal and interest
-exp_temp %>%filter(object == "8800") %>% group_by(fy) %>% summarize(sum=sum(expenditure)) %>% 
-  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Object 8800: Tollway Debt Principal and Interest")
 
 
 rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source) 
 
 # look at Illinois tollway bond proceeds and debt service: 
 # rev_temp %>% filter(fund == "0455") # examine items in fund 0455
-exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
+#exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
 
-rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts)) %>% arrange(-fy)
-
-
-exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 from Expenditure: Tollway Debt Service ", caption = "Data from IOC Expenditure Files. Fund 0455 is the IL State Tollway")
+#rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts)) %>% arrange(-fy)
 
 
-# is this for all revenues, not just bond proceeds?
-rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts))%>% 
-  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 from Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
+exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(expenditure = sum(expenditure)) %>% ggplot() + geom_line(aes(x=fy, y=expenditure)) + labs(title = "Fund 0455 from Expenditure: All Tollway Expenditures", caption = "Data from IOC Expenditure Files. Fund 0455 is the IL State Tollway")
 
 
+# all tollway revenues, not just bond proceeds
+rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts))%>%  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - All Tollway Revenue", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue") 
+
+# tollway bond proceeds
+rev_temp %>% filter(fund == "0455" & source == "0571") %>% group_by(fy) %>% summarize(sum = sum(receipts))%>% 
+  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - Tollway Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
+
+
+#tollway debt principal and interest
+exp_temp %>%filter(object == "8800" & fund == "0455") %>% group_by(fy) %>% summarize(sum=sum(expenditure)) %>% 
+  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Tollway Debt Service", caption = "Debt service includes principal and interest for the Illinois Tollway. Object = 8800 and fund = 0455")
 
 # Tollway agency expenditures = SAME as filtering by fund == 0455
 #tollway<-exp_temp %>% filter(agency == "557")
@@ -1296,8 +1300,8 @@ rev_temp %>%
 # combines smallest 4  categories to to "Other"
 # they were the 4 smallest in past years, are they still the 4 smallest? 
 
-rev_temp <- rev_temp %>%  
-  mutate(rev_type_new = ifelse(rev_type=="30" | rev_type=="60" | rev_type=="63" | rev_type=="76", "78", rev_type_new))
+#rev_temp <- rev_temp %>%  
+#  mutate(rev_type_new = ifelse(rev_type=="30" | rev_type=="60" | rev_type=="63" | rev_type=="76", "78", rev_type_new))
 
 
 #table(rev_temp$rev_type_new)  # check work
@@ -1389,7 +1393,7 @@ aggregate_rev_labels <- ff_rev %>%
          "INHERITANCE TAX" = rev_21,
          "INSURANCE TAXES&FEES&LICENSES, net of refunds" = rev_24 ,
          "CORP FRANCHISE TAXES & FEES" = rev_27,
-      #   "HORSE RACING TAXES & FEES" = rev_30,  # in Other
+       # "HORSE RACING TAXES & FEES" = rev_30,  # in Other
          "MEDICAL PROVIDER ASSESSMENTS" = rev_31 ,
          # "GARNISHMENT-LEVIES " = rev_32 , # dropped
          "LOTTERY RECEIPTS" = rev_33 ,
@@ -1404,12 +1408,12 @@ aggregate_rev_labels <- ff_rev %>%
          "FEDERAL OTHER" = rev_57 ,
          "FEDERAL MEDICAID" = rev_58, 
          "FEDERAL TRANSPORTATION" = rev_59 ,
-      #   "OTHER GRANTS AND CONTRACTS" = rev_60, #other
-       #  "INVESTMENT INCOME" = rev_63, # other
+         #"OTHER GRANTS AND CONTRACTS" = rev_60, #other
+       # "INVESTMENT INCOME" = rev_63, # other
          # "PROCEEDS,INVESTMENT MATURITIES" = rev_66 , #dropped
          # "BOND ISSUE PROCEEDS" = rev_72,  #dropped
          # "INTER-AGENCY RECEIPTS" = rev_75,  #dropped
-     #    "TRANSFER IN FROM OUT FUNDS" = rev_76,  #other
+      #  "TRANSFER IN FROM OUT FUNDS" = rev_76,  #other
          "ALL OTHER SOURCES" = rev_78,
          # "COOK COUNTY IGT" = rev_79, #dropped
          # "PRIOR YEAR REFUNDS" = rev_98 #dropped
@@ -1571,8 +1575,8 @@ exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Categor
              T ~ "CHECK ME!")
            )
 
-#write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
-#write_csv(rev_long, "revenue_recoded_long_FY22.csv")
+write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
+write_csv(rev_long, "revenue_recoded_long_FY22.csv")
 
 aggregated_totals_long <- rbind(rev_long, exp_long)
 aggregated_totals_long
@@ -2012,3 +2016,209 @@ dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long,
 
 write.xlsx(dataset_names, file = 'summary_file_FY2022.xlsx')
 ```
+
+
+# Forecasting attempt
+
+```{r}
+#### Revenues
+
+year_totals <- year_totals %>% 
+  arrange(Year)
+
+#ts_rev <- year_totals %>% select(Year, Revenue ) %>% arrange(Year)
+
+tsrev <- ts(year_totals$Revenue, start ="1998", frequency = 1) # yearly data
+
+start(tsrev) # 1998, January
+end(tsrev)  ## 2022 
+summary(tsrev)
+plot(tsrev)
+abline(reg=lm(tsrev~time(tsrev)))
+
+
+#### ARIMAs
+mymodel <- auto.arima(tsrev, seasonal = FALSE)
+mymodel # ARIMA (0, 1, 0) with drift
+myforecastrev <- forecast(mymodel, h = 20)
+plot(myforecastrev,  xlab ="", 
+     ylab ="Total Revenue",
+     main ="Chicago Revenue")
+```
+
+```{r}
+tsexp <- ts(year_totals$Expenditures, start = "1998", frequency = 1)
+model_exp<- auto.arima(tsexp, seasonal = FALSE)
+model_exp # ARIMA (0,1,1) with drift
+
+forecast_exp <- forecast(model_exp, h = 20) 
+plot(forecast_exp, xlab ="", 
+     ylab ="Total Expenditures",
+     main ="Chicago Expenditures")
+```
+
+```{r}
+p <- forecast(model_exp,  h = 20) %>% 
+  autoplot() +
+    ylab("Dollars (Millions)") +
+  xlab("Year") +
+  ggtitle("Forecasted Expenditures") +
+  theme_classic() +
+  scale_y_continuous(labels = dollar )
+
+summary(forecast_exp)
+
+annotation <- data.frame(
+  x = c(2027, 2032),
+  y = c(130000, 100000),  label = c("$114 ± 19 Billion in 2027","$128 ± 25 Billion in 2032 ")
+)
+
+p + geom_label(data = annotation, aes(x=x, y=y, label=label), size = 3) + labs(title = "Forecasted Expenditures", caption = "Projected values at 95% confidence interval. 
+Dark blue represents 80% liklihood of falling with that range, 
+                                                                               light blue represents 95% liklihood of being in projected range.")
+```
+
+```{r}
+#### revenue chart
+model_rev <- auto.arima(tsrev, seasonal = FALSE)
+forecast_rev <- forecast(model_rev, h = 20)
+
+q <- forecast(forecast_rev,  h = 20) %>% 
+  autoplot() +
+    ylab("Dollars (Millions)") +
+  xlab("Year") +
+  ggtitle("Forecasted Revenue") +
+  theme_classic() +
+  scale_y_continuous(labels = dollar )
+
+summary(forecast_rev)
+
+annotation <- data.frame(
+  x = c(2027, 2032),
+  y = c(130000, 300000),  
+  label = c("Crazy number 1 in 2027","crazy number 2 in 2032")
+)
+
+q+ geom_label(data = annotation, aes(x=x, y=y, label=label), size = 3) +
+  labs(caption = "Skewed by 2022 federal revenues")
+```
+revenue forecasting using precovid trends:
+
+```{r}
+# revenue using precovid trends
+tsrev <- ts(year_totals$Revenue, start ="1998", end = "2021", frequency = 1) # yearly data
+
+#### revenue chart
+model_rev <- auto.arima(tsrev, seasonal = FALSE)
+forecast_rev <- forecast(model_rev, h = 23)
+
+c <- forecast(forecast_rev,  h = 20) %>% 
+  autoplot() +
+    ylab("Dollars (Millions)") +
+  xlab("Year") +
+  ggtitle("Forecasted Revenue") +
+  theme_classic() +
+  scale_y_continuous(labels = dollar )
+
+summary(forecast_rev)
+
+annotation <- data.frame(
+  x = c(2020, 2032),
+  y = c(130000, 100000),  
+  label = c("$108 ± 16 Billion in 2027","$121 ± 21 Billion in 2032")
+)
+
+c+ geom_label(data = annotation, aes(x=x, y=y, label=label), size = 3) + labs(title= "Revenue Forecasted using Pre-Covid Data", subtitle = "Own Source and Federal Revenues Combined")
+```
+
+```{r}
+autoplot(tsexp) +
+  #geom_line(tsexp)+
+  #geom_line(aes(model_rev))+
+  autolayer(forecast_rev, series = "Revenue") +
+  autolayer(forecast_exp, series = "Expenditure)", alpha = 0.5) +
+  geom_line(year_totals, mapping= aes(x = Year, y = Revenue))  + guides(colour = guide_legend("Forecast")) + 
+  labs(title = "Forecasted Revenue and Expenditures", caption = "Skewed by 2022 federal revenue from Covid response")
+```
+
+### Federal Revenue
+
+```{r}
+fed_rev <- ff_rev %>% select(fy, rev_57, rev_58, rev_59) %>%
+  mutate(fed_total = rev_57+rev_58+rev_59)
+fed_ts57 <- ts(fed_rev$rev_57, start ="1998", frequency = 1) # yearly data
+
+model_fed <- auto.arima(fed_ts57, seasonal = FALSE)
+forecast_fed <- forecast(model_fed, h = 23)
+
+fed57 <- forecast(forecast_fed,  h = 20) %>% 
+  autoplot() +
+    ylab("Nominal Dollars (Millions)") +
+  xlab("Year") +
+  ggtitle("Forecasted Federal Other Revenue") +
+  theme_classic() +
+  scale_y_continuous(labels = dollar )
+
+fed57
+
+fed_ts58 <- ts(fed_rev$rev_58, start ="1998", frequency = 1) # yearly data
+
+model_fed <- auto.arima(fed_ts58, seasonal = FALSE)
+forecast_fed <- forecast(model_fed, h = 23)
+
+fed58 <- forecast(forecast_fed,  h = 20) %>% 
+  autoplot() +
+    ylab("Nominal Dollars (Millions)") +
+  xlab("Year") +
+  ggtitle("Forecasted Federal Transfers for Transportation") +
+  theme_classic() +
+  scale_y_continuous(labels = dollar )
+
+fed58
+
+fed_ts59 <- ts(fed_rev$rev_59, start ="1998", frequency = 1) # yearly data
+
+model_fed <- auto.arima(fed_ts59, seasonal = FALSE)
+forecast_fed <- forecast(model_fed, h = 23)
+
+fed59 <- forecast(forecast_fed,  h = 20) %>% 
+  autoplot() +
+    ylab("Nominal Dollars (Millions)") +
+  xlab("Year") +
+  ggtitle("Forecasted Federal Medicaid Reimbursements") +
+  theme_classic() +
+  scale_y_continuous(labels = dollar )
+
+fed59
+
+fed_tstotal <- ts(fed_rev$fed_total, start ="1998", frequency = 1) # yearly data
+
+model_fed <- auto.arima(fed_tstotal, seasonal = FALSE)
+forecast_fed <- forecast(model_fed, h = 23)
+
+fedtotal <- forecast(forecast_fed,  h = 20) %>% 
+  autoplot() +
+    ylab("Nominal Dollars (Millions)") +
+  xlab("Year") +
+  ggtitle("Forecasted Federal Revenue", subtitle = "Sum of Transportation, Medicaid, and Other Federal Tranfers") +
+  theme_classic() +
+  scale_y_continuous(labels = dollar ) 
+
+fedtotal
+
+fed_tstotal <- ts(fed_rev$fed_total, start ="1998", end = "2019", frequency = 1) # yearly data
+
+model_fed <- auto.arima(fed_tstotal, seasonal = FALSE)
+forecast_fed <- forecast(model_fed, h = 23)
+
+fedtotal2 <- forecast(forecast_fed,  h = 20) %>% 
+  autoplot() +
+    ylab("Nominal Dollars (Millions)") +
+  xlab("Year") +
+  ggtitle("Forecasted Federal Revenue -- pre-COVID trends", subtitle = "Sum of Transportation, Medicaid, and Other Federal Tranfers") +
+  theme_classic() +
+  scale_y_continuous(labels = dollar ) 
+
+fedtotal2
+```
+
