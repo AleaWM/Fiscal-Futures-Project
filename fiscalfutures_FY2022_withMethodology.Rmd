@@ -30,7 +30,8 @@ library(geofacet)
 library(janitor)
 
 
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+# , cache = TRUE
 ```
 
 # Data Creation and Cleaning
@@ -450,7 +451,7 @@ Pension funding ratio could be calculated using only the pension plan benefits p
 State payments to the following pension systems:  
 
 • Teachers Retirement System (TRS)  
-  - New POB bond in 2019: Accelerated Bond Fund paid benefits in advance as lump sum
+- New POB bond in 2019: Accelerated Bond Fund paid benefits in advance as lump sum   
 • State Employee Retirement System (SERS)  
 • State University Retirement System (SURS)  
 • Judges Retirement System (JRS)  
@@ -460,21 +461,22 @@ State payments to the following pension systems:
 
 
 Employer contributions for pensions are excluded from analysis to avoid double counting the cost of pensions. Expenditures with object 4430 for pensions, benefits, and annuities  appears in items from funds 0473, 0477, 0479, 0481, (TRS, JRS, SERS, GARS), 0755, 0786, 0787, 0788, 0789, 0799 (deferred compensation plan, GAR excess benefit, JRS excess benefit, SER excess benefit, TRS excess benefit, state university retirement system) are NOT included in the analysis. All are coded with in_ff=0 in the fund_ab_in.xlsx file of funds.   
-- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. We are no longer doing this as of FY2021.
-- Pension obligation acceleration bond, state pension obligation bond reimbursements, pension pickup, accelerated pension buy-out (bond financced funds)
+
+- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. We are no longer doing this as of FY2021.   
+- Pension obligation acceleration bond, state pension obligation bond reimbursements, pension pickup, accelerated pension buy-out (bond financed funds)   
 
 State pension contributions are largely captured with object=4431. **(State payments into pension fund)**    
   - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
-  - does not capture recent pension stabilization payments
+  - does not capture recent pension stabilization payments   
   
 Other items to be aware of that may contain useful pension context:   
+
 - object = 1298 is for Purchase of Investments and is excluded from analysis. In past analyses, there were a couple of exceptions during 2010 and 2011.      
   - Purchase of Investments captures the pension obligation bonds issued in 2003-2004 and again in 2010-2011.  
 - object = 1900 for pension stabilization under lump sums  
 - object = 1167 and 1168 is for Employer pension contributions but is not used yet as of FY2022.  
-
-- object 4900 is awards and grants lump sum
-- object 1993 is interfund cash transfers-always dropped
+- object 4900 is awards and grants lump sum   
+- object 1993 is interfund cash transfers-always dropped     
  
 ```{r pension-check}
 
@@ -891,29 +893,49 @@ rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange
 # look at Illinois tollway bond proceeds and debt service: 
 # rev_temp %>% filter(fund == "0455") # examine items in fund 0455
 #exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
-
+tollway
 #rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts)) %>% arrange(-fy)
 
 
-exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(expenditure = sum(expenditure)) %>% ggplot() + geom_line(aes(x=fy, y=expenditure)) + labs(title = "Fund 0455 from Expenditure: All Tollway Expenditures", caption = "Data from IOC Expenditure Files. Fund 0455 is the IL State Tollway")
+tollway_exp <- exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(expenditure = sum(expenditure))
+                                                                                                    #tollway_exp %>% ggplot() + geom_line(aes(x=fy, y=expenditure)) + labs(title = "Fund 0455 from Expenditure: All Tollway Expenditures", caption = "Data from IOC Expenditure Files. Fund 0455 is the IL State Tollway")
 
 
 # all tollway revenues, not just bond proceeds
-rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts))%>%  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - All Tollway Revenue", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue") 
+alltollway<-rev_temp %>% filter(fund == "0455" & source != "0571") %>% group_by(fy) %>% summarize(sum = sum(receipts, na.rm = TRUE))
+
+#alltollway %>%  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - All Tollway Revenue", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue") 
 
 # tollway bond proceeds
-rev_temp %>% filter(fund == "0455" & source == "0571") %>% group_by(fy) %>% summarize(sum = sum(receipts))%>% 
-  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - Tollway Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
+tollway_bondproc <- rev_temp %>% filter(fund == "0455" & source == "0571" ) %>% group_by(fy) %>% summarize(sum = sum(receipts, na.rm = TRUE))
+
+#tollway_bondproc %>% ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - Tollway Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
+  
+#ggplot() + geom_line(data=tollway_bondproc, aes(x=fy, y=sum)) + labs(title = "Fund 0455 - Tollway Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
 
 
 #tollway debt principal and interest
-exp_temp %>%filter(object == "8800" & fund == "0455") %>% group_by(fy) %>% summarize(sum=sum(expenditure)) %>% 
-  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Tollway Debt Service", caption = "Debt service includes principal and interest for the Illinois Tollway. Object = 8800 and fund = 0455")
+tollwaydebt <- exp_temp %>%filter(object == "8800" & fund == "0455") %>% group_by(fy) %>% summarize(sum=sum(expenditure)) 
+
+#tollwaydebt %>% ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Tollway Debt Service", caption = "Debt service includes principal and interest for the Illinois Tollway. Object = 8800 and fund = 0455")
 
 # Tollway agency expenditures = SAME as filtering by fund == 0455
 #tollway<-exp_temp %>% filter(agency == "557")
 #exp_temp %>% filter(agency == "557") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
 
+# contributions and benefits paid comparison
+ggplot()+
+  geom_line(data=tollway_bondproc, aes(x=fy, y=sum, color='Bond Proceeds')) +
+  geom_line(data= tollwaydebt, aes(x=fy, y = sum, color = 'Debt Service'))+ 
+
+  geom_line(data= tollway_exp, aes(x=fy, y = expenditure, color = 'Tollway Expenditures'))+ 
+  geom_line(data= alltollway, aes(x=fy, y = sum, color = "Tollway Revenue"))+ 
+  scale_color_manual(values = c(
+    'Bond Proceeds' = 'darkblue',
+    'Debt Service' = 'red',
+    'Tollway Expenditures' = 'orange',
+    'Tollway Revenue' = 'light green')) +
+  labs(title="Tollway bond procreeds, debt service, and expenditures.", caption = "Based on fund = 0455, object = 8800 for revenue and object=4430 for expenditures.", y = "Dollars")
 ```
 
 Filtering for interest on short term borrowing and GO bonds (8813_ _ _ _) and GO bond principal amounts (88130008).  
@@ -1081,9 +1103,9 @@ exp_temp <- exp_temp %>%
   
   
   mutate(group = case_when(
-    agency=="684" | agency=="691"  ~ as.character(agency),
+    # agency=="684" | agency=="691"  ~ as.character(agency), # moved under higher reducation in next line. 11/28/2022 AWM
     
-    agency=="692" | agency=="695" | (agency>"599" & agency<"677") ~ "960", # higher education
+    agency=="692" | agency=="695" | agency == "684" |agency == "691" | (agency>"599" & agency<"677") ~ "960", # higher education
     
     agency=="427"  ~ as.character(agency), # employment security
     
@@ -1650,8 +1672,8 @@ exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Categor
              Category == "494" ~ "TRANSPORTATION" ,
              Category == "532" ~ "ENVIRONMENTAL PROTECT AGENCY" ,
              Category == "557" ~ "IL STATE TOLL HIGHWAY AUTH" ,
-             Category == "684" ~ "IL COMMUNITY COLLEGE BOARD", 
-             Category == "691" ~ "IL STUDENT ASSISTANCE COMM" ,
+             #Category == "684" ~ "IL COMMUNITY COLLEGE BOARD", 
+             #Category == "691" ~ "IL STUDENT ASSISTANCE COMM" ,
              Category == "900" ~ "NOT IN FRAME",
              Category == "901" ~ "STATE PENSION CONTRIBUTION",
              Category == "903" ~ "DEBT SERVICE",
