@@ -1266,9 +1266,9 @@ pension_check3 %>% group_by(fy) %>%
 
 # contributions and benefits paid comparison
 ggplot()+
-  geom_line(data=retirement_contributions, aes(x=fy, y=contributions)) +
-  geom_line(data= pension_exp, aes(x=fy, y = expenditure))+ 
-  labs(title="Retirement revenue sources and benefits paid to employees", caption = "Based on rev_type = 51 for revenue and object=4430 for expenditures.", y = "Dollars")
+  geom_line(data=retirement_contributions, aes(x=fy, y=contributions), color="green") +
+  geom_line(data= pension_exp, aes(x=fy, y = expenditure), color = "dark blue")+ 
+  labs(title="Retirement contributions and benefits paid", caption = "Based on rev_type = 51 for revenue and object=4430 for expenditures.", y = "Dollars")
 ```
 
 
