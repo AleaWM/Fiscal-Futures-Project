@@ -370,6 +370,243 @@ exp_temp <- exp_temp %>%
     TRUE ~ (as.character(agency)))) 
 ```
 
+
+
+For aggregating revenue, use the rev_1998_2022 dataframe, join the funds_ab_in_2022 file to it, and then join the ioc_source_type file to the dataset. Remember: You need to update the funds_ab_in and ioc_source_type file every year! 
+
+```{r create-rev-temp, warning = FALSE, message=FALSE}
+# fund info to revenue for all years
+rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source)
+
+# need to update the ioc_source_type file every year! 
+ioc_source_type <- readxl::read_xlsx("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/ioc_source_updated22_AWM.xlsx")
+
+rev_temp <- left_join(rev_temp, ioc_source_type, by = "source")
+# automatically used source, source name does not match for the join to work using source_name
+
+
+
+# recodes old agency numbers to consistent agency number
+rev_temp <- rev_temp %>% 
+  mutate(agency = case_when(
+    (agency=="438"| agency=="475" |agency == "505") ~ "440",
+    # financial institution &  professional regulation &
+     # banks and real estate  --> coded as  financial and professional reg
+    agency == "473" ~ "588", # nuclear safety moved into IEMA
+    (agency =="531" | agency =="577") ~ "532", # coded as EPA
+    (agency =="556" | agency == "538") ~ "406", # coded as agriculture
+    agency == "560" ~ "592", # IL finance authority (fire trucks and agriculture stuff)to state fire marshal
+    agency == "570" & fund == "0011" ~ "494",   # city of Chicago road fund to transportation
+    TRUE ~ (as.character(agency)))) 
+```
+
+
+# Pension Discusion
+
+
+Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
+
+
+_"Even when the state did make substantial contributions, it was often done in a manner that partly reduced the impact of the funding. For example, then-Governor Blagojevich issued $10 billion of Pension Obligation Bonds (POBs) in 2003. Although this helped boost the funding status of the plans, the authorizing legislation also provided that state contributions be reduced by the amount of principal and interest paid on the bonds (CoGFA 2014). Effectively, the state was borrowing money, investing it in the pension funds, and betting that the returns on the pension portfolio would exceed interest paid on the bonds. Then in Fiscal Years 2006 and 2007, the state enacted "pension holidays" to reduce its contributions for those years below that specified in the already back-loaded 1994 law. POBs were issued again in FY 2010 and FY 2011, in each case with the proceeds being treated as part of that year's pension contributions. It is important to note that this approach to using POBs does virtually nothing to boost the pension plan's funding status over the long-term" - "Basket Case" by Dye 2015_
+
+For the $10 billion in 2004, they borrowed money and invested it in pension portfolio and hoped that the returns would be greater than the interest on the debt. If returns>interest, then they increased the pension funds and it was a good idea. Otherwise a short term band-aid causes even more problems later. This added a significant amount to the unfunded pension liabilities.
+
+In 2010 and 2011, POBs were used a different way. POBs served as a type of general borrowing for the state by borrowing against what was owed to the pension systems and using that revenue that should have funded pensions to instead subsidize the cost of providing core services.  Illinois borrowed money (POBs) and used it to pay for government services. A very classic example of using a one shot-revenue source to fill a budget gap that then costs more in the long run due to increased unfunded liabilities and interest on the borrowed money. 
+
+In 2019 lawmakers offered a pension buyout plan where members could opt-out of their future
+benefits for a lump sum. However, few people participated in the buyout plan and very little savings occured. The buyout plan has been extended to 2026 in hopes that more people participate in it.
+
+The pension stabilization fund (0319) is actually extra money put into the pension funds to help with the long-run deficit. 
+
+
+__For yearly expenditure calculations, the state contributions to the pension funds (object = 4430) should be the expenditure included for pensions. If trying to look at the bigger fiscal health picture and include unfunded liabilities and in/out flows, then items like purchase of investments and large spikes that occurred from policy changes should be included. Again, State contributions TO the pension funds are the expenditures BUT an additional graph/discussion on the employer contributions, employee contributions, and benefits paid out should be included and considered for additional context on Illinois' situation.__
+
+
+Pension funding ratio could be calculated using only the pension plan benefits paid out OR it could include both the benefits paid out and the POB funded contributions. "Kriz argues that a _net amortization calculation_ – one that takes into account the amount necessary to pay retiree benefits and pay off the unfunded liability over time at a level dollar amount – represents a more suitable way of calculating the contribution to pay retiree benefits, reduce the unfunded liability, and return to a reasonable funded ratio."
+
+
+State payments to the following pension systems:  
+
+• Teachers Retirement System (TRS)  
+- New POB bond in 2019: Accelerated Bond Fund paid benefits in advance as lump sum   
+• State Employee Retirement System (SERS)  
+• State University Retirement System (SURS)  
+• Judges Retirement System (JRS)  
+• General Assembly Retirement System (GARS)  
+
+- Includes pension stabilization fund = 0319, object = 1900 and the $300 million investment in FY2022.  
+
+- State pension contributions are largely captured with object=4431. **(State payments into pension fund)**    
+  - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
+  - does not capture recent pension stabilization payments 
+
+- 0475 is the Municipal Retirement Fund - Not included because state just helps collect and disperse local pension funds. IMRF is most funded pension fund in Illinois.  Fund ends in 2015. All were considered purchase of investments. 
+
+- IOC objects 1160-1165 are all retirement objects. I believe they are employer contributions into the pension fund?
+
+
+Employer contributions for pensions are excluded from analysis to avoid double counting the cost of pensions. Expenditures with object 4430 for pensions, benefits, and annuities  appears in items from funds 0473, 0477, 0479, 0481, (TRS, JRS, SERS, GARS), 0755, 0786, 0787, 0788, 0789, 0799 (deferred compensation plan, GAR excess benefit, JRS excess benefit, SER excess benefit, TRS excess benefit, state university retirement system) are NOT included in the analysis. All are coded with in_ff=0 in the fund_ab_in.xlsx file of funds.   
+
+- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. We are no longer doing this as of FY2021.   
+
+- Other types of pension expenditures to consider: Pension obligation acceleration bond, state pension obligation bond reimbursements, pension pickup, accelerated pension buy-out (bond financed funds)   
+
+  
+  
+Other items to be aware of that may contain useful pension context:   
+
+- object = 1298 is for Purchase of Investments and is excluded from analysis. In past analyses, there were a couple of exceptions during 2010 and 2011.      
+  - Purchase of Investments captures the pension obligation bonds issued in 2003-2004 and again in 2010-2011.  
+- object = 1900 for pension stabilization under lump sums  
+- object = 1167 and 1168 is for Employer pension contributions but is not used by IOC yet as of FY2022.  
+- object 4900 is awards and grants lump sum   
+- object 1993 is interfund cash transfers-always dropped     
+ 
+```{r pension-check}
+
+# check what is being included in pensions
+
+# funds related to pension contributions
+pension_funds <- c("0472", "0473", "0477", "0479", "0481", "0755", "0786", "0787", "0788", "0789", "0799")
+
+pension_check <- exp_temp %>% 
+  mutate(pension = case_when( 
+  object == "4430" & fund == "0825" ~ "Object 4430 - Pension Buyout/Benefits Paid Early; INCLUDED",
+    (object=="4430") ~ "Object 4430 - Benefits Paid to Employees; EXCLUDED", # pensions, annuities, benefits
+    (object=="4431") ~ "Object 4431 - State Pension Contributions; INCLUDED", # 4431 = state payments into pension fund
+        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "Object 1160-1165 Employer Contributions to Pension Fund; EXCLUDED",
+    # objects 1159 to 1166 are all considered Retirement by Comptroller 
+    
+            TRUE ~ "0")) %>%  # All other observations coded as 0 for non-pension items
+  
+  # recodes specific instances of code anomalies from past years:
+  mutate(pension = case_when(
+    (object=="1298" & fund %in% pension_funds ) ~ "Object 1298 - Purchase of Investments; DROPPED", 
+
+    
+      # pension stabilization fund in 2022 
+ # object == "1900" & fund == "0319" ~ "Fund 0319-Pension Stabilization", 
+    object == "1900" & fund %in% pension_funds ~ "Fund 0319 - Pension Stabilization", 
+
+  
+  object == "4900" & fund %in% pension_funds ~ "Object 4900 - Awards/Grants; Weird 2010-2011 values",
+  
+    TRUE ~ as.character(pension)) ) %>% 
+  filter(pension != "0" )
+
+pension_check %>% group_by(fy, pension) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, color = pension)) + 
+  geom_line() + 
+
+  labs (title = "Pension Fund Payments In and Retirement Benefits Out", 
+  caption = "Shows items from objects 4430 as employer pension expenditures (retirement benefits paid). 
+  Object = 4431 includes state payments INTO pension Fund.
+  Object 1998 is excluded except for years 2010 and 2011 due to POBs.")+
+    theme(legend.position = "bottom")+
+  guides(color = guide_legend(nrow=3))
+
+pension_check %>% group_by(fy, object) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, color = object)) + 
+  geom_line() + 
+  labs (title = "Expenditures by Object")
+
+pension_check %>% group_by(fy, type) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, color = type)) + 
+  geom_line() + 
+  labs (title = "Expenditures by Type", caption = "Not confident with what Type represents. 
+        $10 billion POB issued in 2003-2004 and again in 2010-2011.")
+  
+
+pension_check3 <- exp_temp %>% 
+  mutate(pension = case_when( 
+       (object=="4430"  ) ~ 1, # 4430 = pension benefits paid to retired employees
+            TRUE ~ 0)) %>% 
+  filter(pension > 0 )
+
+pension_check3 %>% group_by(fy) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure)) + 
+  geom_line() + 
+  labs (title = "Pension Benefits Paid to Employees")
+
+## taking care of Pension Obligation Bond proceeds
+
+```
+
+
+
+Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
+
+
+### Pension Contributions
+
+Employee contributions to pension are a revenue source for the state. In order to get the net cost of pensions for the state, employee contributions should be subtracted from the states pension benefit expenditures in order to calculate net cost.  
+
+- current year employee revenue source = 0573   
+- contributions by employee == 572 (stops at 2011)  
+- rev_type = 51 is for retirement contributions
+
+
+```{r}
+
+# current year employee revenue source = 0573, contributions by employee == 572 (stops at 2011)
+retirement_contributions <- rev_temp %>% 
+  filter(rev_type == "51") %>% group_by(fy) %>% summarize(contributions = sum(receipts))
+
+benefits_paid <- pension_check %>% filter(object == "4430") %>%
+  group_by(fy) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE))
+
+state_contrib <- pension_check %>% filter(object == "4431") %>%
+  group_by(fy) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE))
+
+rev_temp %>% 
+  filter(rev_type == "51") %>% # all retirement contributions
+  group_by(fy, source) %>% 
+  summarise(sum = sum(receipts, na.rm = TRUE)) %>%
+  ggplot() +
+  geom_line(aes(x=fy, y = sum, color=source)) + labs(title="All Retirement Contributions, ALL rev_source == 51")
+
+rev_temp %>% 
+  filter(rev_type == "51" & source == "0573" | source == "0572" | source == "0577") %>%  
+  group_by(fy, source) %>% 
+  summarise(sum = sum(receipts, na.rm = TRUE)) %>%
+  ggplot() +
+  geom_line(aes(x=fy, y = sum, color=source)) + labs(title="Retirement Contributions by Source from Employee and Employers", caption = "Source 0573, 0572 is for employee contributions. 0577 is Contributions by employer.")
+
+
+# contributions and benefits paid comparison
+ggplot()+
+  geom_line(data=retirement_contributions, aes(x=fy, y=contributions), color="green") +
+  geom_line(data= state_contrib, aes(x=fy, y = expenditure), color = "red")+ 
+
+  geom_line(data= benefits_paid, aes(x=fy, y = expenditure), color = "dark blue")+ 
+  labs(title="Pension fund inflows and outflows", 
+       caption = "Based on rev_type = 51 for employee and employer contributions into the fund,
+       object=4430 for benefits paid out of funds, 
+       and object=4431 for state contributions into pension fund", y = "Dollars")
+```
+
+
+```{r}
+rev_type <- anti_join(rev_temp, retirement_contributions)
+
+pension_rev_yearly <- rev_temp %>% 
+  filter(rev_type == "51" & source == "0573" | source == "0572") %>% 
+  group_by(fy, rev_type) %>%
+  summarise(pension_rev_sum = sum(receipts, na.rm=TRUE)/1000000) %>% select(-rev_type)
+
+```
+
+`pension_rev` should be subtracted from the state pension expenditures. Employee contributions to pensions are a revenue source. We want net pension cost, therefore subtract employee contributions from pension costs. 
+
+
+
+
 # Modify Expenditure File
 
 ### Tax refunds 
@@ -424,29 +661,8 @@ exp_temp <- exp_temp %>% filter(refund == "not refund")
 
 ### Pension Expenditures
 
-"Even when the state did make substantial contributions, it was often done in a manner that partly reduced the impact of the funding. For example, then-Governor Blagojevich issued $10 billion of Pension Obligation Bonds (POBs) in 2003. Although this helped boost the funding status of the plans, the authorizing legislation also provided that state contributions be reduced by the amount of principal and interest paid on the bonds (CoGFA 2014). Effectively, the state was borrowing money, investing it in the pension funds, and betting that the returns on the pension portfolio would exceed interest paid on the bonds. Then in Fiscal Years 2006 and 2007, the state enacted "pension holidays" to reduce its contributions for those years below that specified in the already back-loaded 1994 law.
 
-POBs were issued again in FY 2010 and FY 2011, in each case with the proceeds being treated as part of that year's pension contributions. It is important to note that this approach to using POBs does virtually nothing to boost the pension plan's funding status over the long-term" - "Basket Case" by Dye 2015
-
-
-
-For the $10 billion in 2004, they borrowed money and invested it and hoped that the returns would be greater than the interest on the debt. If returns>interest, then they increased the pension funds. Otherwise a short term band-aid causes even more problems later. This added a significant amount to the unfunded pension liabilities.
-
-In 2010 and 2011, POBs were used a different way. POBs served as a type of general borrowing for the state by borrowing against what was owed to the pension systems and using that revenue that should have funded pensions to instead subsidize the cost of providing core services.  Illinois borrowed money (POBs) and used it to pay for government services. A very classic example of using a one shot-revenue source to fill a budget gap that then costs more in the long run due to increased unfunded liabilities and interest on the borrowed money. 
-
-In 2019 lawmakers offered a pension buyout plan where members could opt-out of their future
-benefits for a lump sum. However, few people participated in the buyout plan and very little savings occured. The buyout plan has been extended to 2026 in hopes that more people participate in it.
-
-The pension stabilization fund (0319) is actually extra money put into the pension funds to help with the long-run deficit. 
-
-
-__Alea's thoughts: For yearly calculations, the benefits paid by the state (object = 4431) should be the expenditure included for pensions. If trying to assess the bigger picture and include unfunded liabilities, then items like purchase of investments and large spikes that occured from policy changes should be included.__
-
-
-Pension funding ratio could be calculated using only the pension plan benefits paid out OR it could include both the benefits paid out and the POB funded contributions. "Kriz argues that a _net amortization calculation_ – one that takes into account the amount necessary to pay retiree benefits and pay off the unfunded liability over time at a level dollar amount – represents a more suitable way of calculating the contribution to pay retiree benefits, reduce the unfunded liability, and return to a reasonable funded ratio."
-
-
-> 300 million pension stabilization payment from fund 0319, object == 1900 for lump sums and other purposes. This is a type of pension contribution, right?
+__For yearly expenditure calculations, the state contributions to the pension funds (object = 4431) should be the expenditure included for pensions. If trying to look at the bigger fiscal health picture and include unfunded liabilities and in/out flows, then items like purchase of investments and large spikes that occurred from policy changes should be included. Again, State contributions TO the pension funds are the expenditures BUT an additional graph/discussion on the employer contributions, employee contributions (revenue source), and benefits paid out to employees (object = 4430) should be included and considered for additional context on Illinois' situation.__
 
 State payments to the following pension systems:  
 
@@ -457,176 +673,57 @@ State payments to the following pension systems:
 • Judges Retirement System (JRS)  
 • General Assembly Retirement System (GARS)  
 
-- 0475 is the Municipal Retirement Fund - Not included because state just helps collect and disperse local pension funds. IMRF is most funded pension fund in Illinois.  Fund ends in 2015. All were considered purchase of investments. 
-
-
-Employer contributions for pensions are excluded from analysis to avoid double counting the cost of pensions. Expenditures with object 4430 for pensions, benefits, and annuities  appears in items from funds 0473, 0477, 0479, 0481, (TRS, JRS, SERS, GARS), 0755, 0786, 0787, 0788, 0789, 0799 (deferred compensation plan, GAR excess benefit, JRS excess benefit, SER excess benefit, TRS excess benefit, state university retirement system) are NOT included in the analysis. All are coded with in_ff=0 in the fund_ab_in.xlsx file of funds.   
-
-- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. We are no longer doing this as of FY2021.   
-- Pension obligation acceleration bond, state pension obligation bond reimbursements, pension pickup, accelerated pension buy-out (bond financed funds)   
-
-State pension contributions are largely captured with object=4431. **(State payments into pension fund)**    
+- Includes pension stabilization fund = 0319, object = 1900 and the $300 million investment in FY2022.    
+- State pension contributions are largely captured with object=4431. **(State payments into pension fund)**    
   - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
   - does not capture recent pension stabilization payments   
-  
-Other items to be aware of that may contain useful pension context:   
-
-- object = 1298 is for Purchase of Investments and is excluded from analysis. In past analyses, there were a couple of exceptions during 2010 and 2011.      
-  - Purchase of Investments captures the pension obligation bonds issued in 2003-2004 and again in 2010-2011.  
-- object = 1900 for pension stabilization under lump sums  
-- object = 1167 and 1168 is for Employer pension contributions but is not used yet as of FY2022.  
-- object 4900 is awards and grants lump sum   
-- object 1993 is interfund cash transfers-always dropped     
- 
-```{r pension-check}
-
-# check what is being included in pensions
-
-group_ins <- c("0472", "0473", "0477", "0479", "0481", "0755", "0786", "0787", "0788", "0789", "0799")
-
-pension_check <- exp_temp %>% 
-  mutate(pension = case_when( 
-  object == "4430" & fund == "0825" ~ "Object 4430 - Pension Buyout/Benefits Paid Early; DROPPED",
-    (object=="4430") ~ "Object 4430 - Employer Benefits Paid", # pensions, annuities, benefits
-    (object=="4431") ~ "Object 4431 - State Pension Contributions", # 4431 = state payments into pension fund
-        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "Object 1159-1166 IOC Retirement Object Categories; DROPPED",
-    # objects 1159 to 1166 are all considered Retirement by Comptroller 
-    
-            TRUE ~ "0")) %>%  # All other observations coded as 0 for non-pension items
-  
-  # recodes specific instances of code anomalies from past years:
-  mutate(pension = case_when(
-        # judges retirement "Purchase of investments" in 2010 and 2011
-    (object=="1298" & fund %in% group_ins ) ~ "Object 1298 - Purchase of Investments; DROPPED", 
-       #(fy==2010 | fy==2011) & 
-      # (fund=="0477" | fund=="0479" | fund=="0481")) ~ "Purchase of Investments; DROPPED", 
-    
-      # pension stabilization fund in 2022 
- # object == "1900" & fund == "0319" ~ "Fund 0319-Pension Stabilization", 
-    object == "1900" & fund %in% group_ins ~ "Fund 0319 - Pension Stabilization", 
-
-  
-  object == "4900" & fund %in% group_ins ~ "Object 4900 - Awards/Grants; Weird 2010-2011 values",
-  
-    TRUE ~ as.character(pension)) ) %>% 
-  filter(pension != "0" )
-
-pension_check %>% group_by(fy, pension) %>% 
-  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
-  ggplot(aes(x=fy, y = expenditure, color = pension)) + 
-  geom_line() + 
-  labs (title = "Pension Fund Payments In and Retirement Benefits Out", 
-  caption = "Shows items from objects 4430 as employer 
-  pension expenditures (retirement benefits paid). 
-  Object = 4431 includes state payments INTO pension Fund.")
-
-pension_check %>% group_by(fy, object) %>% 
-  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
-  ggplot(aes(x=fy, y = expenditure, color = object)) + 
-  geom_line() + 
-  labs (title = "Expenditures by Object")
-
-pension_check %>% group_by(fy, type) %>% 
-  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
-  ggplot(aes(x=fy, y = expenditure, color = type)) + 
-  geom_line() + 
-  labs (title = "Expenditures by Type", caption = "Not confident with what Type represents. 
-        $10 billion POB issued in 2003-2004 and again in 2010-2011.")
-
-pension_check2 <- exp_temp %>% 
-  mutate(pension = case_when( 
-     #   (object=="4431" | (object>"1159" & object<"1166") ) ~ 1, 
-       (object=="4431"  ) ~ 1, # 4431 = payments into pension fund
-        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ 2,
-
-    # objects 1159 to 1166 are all considered Retirement by Comptroller 
-    # object == 1167 also appears to be Other Retirement but isn't used yet
-            TRUE ~ 0)) %>% 
-  
-  mutate(pension = case_when(     # objects were weird for 2010 and 2011
-   (object=="4431" & fund=="0473")  ~ 3, # teachers retirement system,  
-  #  obj_seq_type == "44310055" ~ 3, # teachers retirement system in 2010 and 2011. 
-   (object=="1298" & 
-      #(fy==2010 | fy==2011) &  # for the two weird years based on past code
-      (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, # judges retirement 
-   # obj_seq_type == "12980055" ~ 3, # judge retirement contributions during 2010 and 2011
-  object == "1900" & fund == "0319" ~ 5, # pension stabilization fund in 2022 
-    TRUE ~ pension)) %>% 
-  filter(pension > 0 )
-
-pension_check3 <- exp_temp %>% 
-  mutate(pension = case_when( 
-       (object=="4430"  ) ~ 1, # 4430 = pension benefits paid to retired employees
-            TRUE ~ 0)) %>% 
-  filter(pension > 0 )
-
-pension_check3 %>% group_by(fy) %>% 
-  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
-  ggplot(aes(x=fy, y = expenditure)) + 
-  geom_line() + 
-  labs (title = "Pension Benefits Paid to Employees by State Employers")
-
-#write_csv(pension_check, "pension_checkfy22v3.csv")
-
-## taking care of Pension Obligation Bond proceeds
-
-pension_check2 <- pension_check2 %>% 
-  # change object for 2010 and 2011, retirement expenditures were bond proceeds
-  mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", as.character(object))) %>% # changes weird teacher & judge retirement system  pensions object to normal pension object 4431
-  mutate(pension =  ifelse(pension == 1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded due to being bond proceeds ?
-  mutate(in_ff = ifelse((pension ==2 | pension ==3), "1", as.character(in_ff)))
-
-
-# create file with all pension items to find any mistakes
-#pension_check %>% write_csv("all_pensions.csv")
-
-table(pension_check2$pension)
-
-
-```
-
-
+- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. We are no longer doing this as of FY2021.    
 
 Modify exp_temp and move all state pension contributions to their own group (901):
 ```{r pensions}
 exp_temp <-  exp_temp %>% 
   arrange(fund) %>%
   mutate(pension = case_when( 
-    
-  # objects were weird for 2010 and 2011 for teacher and judge retirement system
-     # (object=="4431" & fund=="0473") ~ 3, # teachers retirement system, 
- # Was this: (object=="4431" & fund=="0473" &  (fy==2010 | fy==2011)) ~ 3, # teachers retirement system, 
    (object=="4431") ~ 1, # 4431 = easy to find pension payments INTO fund
    
-  (object>"1159" & object<"1166") & fund != "0183" & fund != "0193"   ~ 2, 
-   # objects 1159 to 1166 are all considered Retirement by Comptroller, OUT 
-  # object == 1167 also appears to be Other Retirement but isn't used yet
- 
-  (object=="1298" &  # Purchase of Investments
+ # (object>"1159" & object<"1166") & fund != "0183" & fund != "0193"   ~ 2, 
+   # objects 1159 to 1166 are all considered Retirement by Comptroller, 
+  # Excluded - employer contributions from agencies/organizations/etc.
+
+  (object=="1298" &  # Purchase of Investments, Normally excluded
      (fy==2010 | fy==2011) & 
      (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement OUT of fund
   # state borrowed money from pension funds to pay for core services during 2010 and 2011. 
   # used to fill budget gap and push problems to the future.
  
 
- fund == "0319" ~ 4, #pension stabilization fund IN?
+ fund == "0319" ~ 4, #pension stabilization fund, included
                                         TRUE ~ 0) )
 
-table(exp_temp$pension) # same number of total observations > 0 as pension_check
+table(exp_temp$pension) 
 
+
+exp_temp %>% filter(pension != 0) %>%
+  mutate(pension = as.factor(pension))%>%
+  group_by(fy, pension) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, group=pension)) + 
+  geom_line(aes(color = pension)) + 
+
+  labs (title = "State contributions INTO pension funds", 
+  caption = "Shows items from objects 4431 as employer pension expenditures (State contributions INTO the funds.")+
+    theme(legend.position = "bottom")
 
 ```
 
 
-
-Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
 
 ```{r pensions-POB}
 
 # special accounting of pension obligation bond (POB)-funded contributions to JRS, SERS, GARS, TRS 
 
 exp_temp <- exp_temp %>% 
-  # change object for 2010 and 2011, retirement expenditures were bond proceeds
+  # change object for 2010 and 2011, retirement expenditures were bond proceeds and would have been excluded
   mutate(object = ifelse((pension >0 & in_ff == "0"), "4431", object)) %>% 
   # changes weird teacher & judge retirement system  pensions object to normal pension object 4431
   mutate(pension =  ifelse(pension >0 & in_ff == "0", 6, pension)) %>% # coded as 6 if it was supposed to be excluded. 
@@ -648,8 +745,7 @@ exp_temp %>%
   ggplot(aes(x=fy, y=expenditure, color = pension)) +
   geom_line() + 
   labs (title = "Pension Expenditures", 
-  caption = "Includes objects 1160-1165, 1298, 1900, and 4431 as pension expenditures.
-        Object = 4431 includes payments INTO pension Fund.")
+  caption = "Object = 4431 includes payments INTO pension Fund.")
 ```
 
 
@@ -904,20 +1000,21 @@ tollway_exp <- exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summariz
 # all tollway revenues, not just bond proceeds
 alltollway<-rev_temp %>% filter(fund == "0455" & source != "0571") %>% group_by(fy) %>% summarize(sum = sum(receipts, na.rm = TRUE))
 
-#alltollway %>%  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - All Tollway Revenue", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue") 
 
 # tollway bond proceeds
 tollway_bondproc <- rev_temp %>% filter(fund == "0455" & source == "0571" ) %>% group_by(fy) %>% summarize(sum = sum(receipts, na.rm = TRUE))
+
+#alltollway %>%  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - All Tollway Revenue", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue") 
 
 #tollway_bondproc %>% ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - Tollway Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
   
 #ggplot() + geom_line(data=tollway_bondproc, aes(x=fy, y=sum)) + labs(title = "Fund 0455 - Tollway Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
 
+#tollwaydebt %>% ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Tollway Debt Service", caption = "Debt service includes principal and interest for the Illinois Tollway. Object = 8800 and fund = 0455")
+
 
 #tollway debt principal and interest
 tollwaydebt <- exp_temp %>%filter(object == "8800" & fund == "0455") %>% group_by(fy) %>% summarize(sum=sum(expenditure)) 
-
-#tollwaydebt %>% ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Tollway Debt Service", caption = "Debt service includes principal and interest for the Illinois Tollway. Object = 8800 and fund = 0455")
 
 # Tollway agency expenditures = SAME as filtering by fund == 0455
 #tollway<-exp_temp %>% filter(agency == "557")
@@ -927,7 +1024,6 @@ tollwaydebt <- exp_temp %>%filter(object == "8800" & fund == "0455") %>% group_b
 ggplot()+
   geom_line(data=tollway_bondproc, aes(x=fy, y=sum, color='Bond Proceeds')) +
   geom_line(data= tollwaydebt, aes(x=fy, y = sum, color = 'Debt Service'))+ 
-
   geom_line(data= tollway_exp, aes(x=fy, y = expenditure, color = 'Tollway Expenditures'))+ 
   geom_line(data= alltollway, aes(x=fy, y = sum, color = "Tollway Revenue"))+ 
   scale_color_manual(values = c(
@@ -935,7 +1031,10 @@ ggplot()+
     'Debt Service' = 'red',
     'Tollway Expenditures' = 'orange',
     'Tollway Revenue' = 'light green')) +
-  labs(title="Tollway bond procreeds, debt service, and expenditures.", caption = "Based on fund = 0455, object = 8800 for revenue and object=4430 for expenditures.", y = "Dollars")
+  labs(title="Tollway bond procreeds, debt service, revenue, and expenditures.", 
+       caption = "Tollway fund 0455.
+       Revenue line does not include bond proceeds.", 
+       y = "Dollars")
 ```
 
 Filtering for interest on short term borrowing and GO bonds (8813_ _ _ _) and GO bond principal amounts (88130008).  
@@ -1189,7 +1288,7 @@ Expanded to include the following smaller sources:
 
 For aggregating revenue, use the rev_1998_2022 dataframe, join the funds_ab_in_2022 file to it, and then join the ioc_source_type file to the dataset. Remember: You need to update the funds_ab_in and ioc_source_type file every year! 
 
-```{r create-rev-temp, warning = FALSE, message=FALSE}
+```{r, warning = FALSE, message=FALSE}
 # fund info to revenue for all years
 rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source)
 
@@ -1198,10 +1297,9 @@ ioc_source_type <- readxl::read_xlsx("C:/Users/aleaw/OneDrive/Documents/PhD Fall
 
 rev_temp <- left_join(rev_temp, ioc_source_type, by = "source")
 # automatically used source, source name does not match for the join to work using source_name
-```
 
-Update Agencies: Early agencies replaced by successors
-```{r agencies-rev}
+
+
 # recodes old agency numbers to consistent agency number
 rev_temp <- rev_temp %>% 
   mutate(agency = case_when(
