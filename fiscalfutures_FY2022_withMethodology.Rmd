@@ -1567,7 +1567,6 @@ emp_premium_long <- rev_temp %>%  filter(employee_premiums == 1)
 
 
 rev_temp <- rev_temp %>% filter(employee_premiums != 1)
-# could also do an antijoin with rev_temp and med_option dataframes
 
 
 ```
@@ -1586,7 +1585,7 @@ I am currently choosing to exclude the totals from this step. Overall, this decr
 
 
 ```{r step-3.8}
-rev_type <- rev_temp %>% 
+rev_temp <- rev_temp %>% 
   filter(in_ff == 1) %>% 
   mutate(local = ifelse(is.na(local), 0, local)) %>% # drops all revenue observations that were coded as "local == 1"
   filter(local != 1)
@@ -1596,7 +1595,7 @@ in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182",
 
 # what does this actually include:
 # all are items with rev_type = 75 originally. 
-in_out_df <- rev_type %>%
+in_out_df <- rev_temp %>%
   mutate(infromout = ifelse(source %in% in_from_out, 1, 0)) %>%
   filter(infromout == 1)
 
