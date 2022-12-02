@@ -400,8 +400,9 @@ rev_temp <- rev_temp %>%
     TRUE ~ (as.character(agency)))) 
 ```
 
+# Overall Fiscal Health
 
-# Pension Discusion
+## Pension Discusion
 
 
 Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
@@ -528,6 +529,43 @@ pension_check3 %>% group_by(fy) %>%
 
 ```
 
+```{r}
+pension_picture <- exp_temp %>% 
+  mutate(pension = case_when( 
+  #object == "4430" & fund == "0825" ~ "Pension Buyout/Benefits Paid Early; INCLUDED",
+    (object=="4430") ~ "Benefits Paid to Employees", # pensions, annuities, benefits
+    (object=="4431") ~ "State Pension Contributions", # 4431 = state payments into pension fund
+        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "Employer Contributions",
+    # objects 1159 to 1166 are all considered Retirement by Comptroller 
+    
+            TRUE ~ "0")) %>%  # All other observations coded as 0 for non-pension items
+  
+  # recodes specific instances of code anomalies from past years:
+#  mutate(pension = case_when( (object=="1298" & fund %in% pension_funds ) ~ "Purchase of Investments", 
+
+    
+      # pension stabilization fund in 2022 
+ # object == "1900" & fund == "0319" ~ "Fund 0319-Pension Stabilization", 
+   # object == "1900" & fund %in% pension_funds ~ "Pension Stabilization Fund", 
+  
+    #TRUE ~ as.character(pension)) ) %>% 
+  filter(pension != "0" )
+
+pension_picture %>% group_by(fy, pension) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, color = pension)) + 
+  geom_line() + 
+
+  labs (title = "Pension Fund Payments In and Retirement Benefits Out", 
+  caption = "")+
+    theme(legend.position = "bottom", legend.title = element_blank())#+ guides(color = guide_legend(nrow=2))
+
+pension_check %>% group_by(fy, object) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, color = object)) + 
+  geom_line() + 
+  labs (title = "Expenditures by Object")
+```
 
 
 Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
@@ -535,10 +573,7 @@ Description of Pension Obligation Acceleration Bond at this [link](https://www.i
 
 ### Pension Contributions
 
-Employee contributions to pension are a revenue source for the state. In order to get the net cost of pensions for the state, employee contributions should be subtracted from the states pension benefit expenditures in order to calculate net cost.  
-
-- current year employee revenue source = 0573   
-- contributions by employee == 572 (stops at 2011)  
+  
 - rev_type = 51 is for retirement contributions
 
 
@@ -591,11 +626,22 @@ ggplot()+
       red:  object = 4431 for state contributions into pension fund, 
      green:rev_type = 51 for employee contributions INTO the fund,
      orange: employer contributions INTO the fund.", y = "Dollars")
+
+pension_picture %>% group_by(fy, pension) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, color = pension)) + 
+  geom_line() + 
+  geom_line(data=employee_contributions, aes(x=fy, y=contributions), color="green") +
+    geom_line(data=employer_contributions, aes(x=fy, y=contributions), color="orange") +
+  labs (title = "Pension Fund Payments In and Retirement Benefits Out", 
+  caption = "Neon green - employee contributions INTO the fund. 
+  Orange - employer contributions INTO the fund.")+
+    theme(legend.position = "bottom", legend.title = element_blank())
 ```
 _Earlier I argued that `pension_rev` should be subtracted from the state pension expenditures. Employee contributions to pensions are a revenue source. We want net pension cost, therefore subtract employee contributions from pension costs.  As of 11/30/2022, I have changed my mind. All rev==51 pension contributions should be excluded from analysis BUT pensions as a whole are discussed in the 'Pension Discussion' section earlier in the document._
 
 
-# Debt Service Discussion
+## Debt Service Discussion
 
 
 Debt Service expenditures include interest payment on both short-term and long-term debt. We do not include escrow or principal payments. 
@@ -753,7 +799,7 @@ all_debt %>% ggplot() +
 Capital projects include the IL Civic Center and Build Illinois Bonds. Tollway principal and interest has been dropped from Debt Service but is counted in Tollway Expenditure Cost.
 
 
-# State Employee Healthcare
+## State Employee Healthcare
 
 State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employee contributions are not considered a revenue source or an expenditure in our analysis.
 
@@ -846,8 +892,12 @@ health_insurance_fund_rev<- rev_temp %>%
   filter(fund=="0907") %>% 
     group_by(fy) %>%
   summarize(health_ins_rev = sum(receipts)) 
+
 health_insurance_fund_rev %>% 
-  ggplot(aes(x=fy, y = health_ins_rev)) + geom_line() + labs( title = "Health insurance fund - All revenue")
+  ggplot(aes(x=fy, y = health_ins_rev)) + 
+  geom_line() + labs( title = "Health insurance fund - All revenue")
+
+
 
 #collect optional insurance premiums to fund 0907 for use in eehc expenditure  
 employee_health_premiums <- rev_temp %>% 
@@ -860,7 +910,8 @@ emp_premium <- employee_health_premiums %>%
   group_by(fy) %>%
   summarize(employee_premiums_sum = sum(receipts))
   
-emp_premium %>% ggplot(aes(x=fy, y = employee_premiums_sum)) + geom_line() + labs( title = "Employee health insurance premiums")
+emp_premium %>% ggplot(aes(x=fy, y = employee_premiums_sum)) + 
+  geom_line() + labs( title = "Employee health insurance premiums")
 
 ```
 
@@ -890,8 +941,8 @@ ggplot()+
        y = "Dollars")
 ```
 
-
-# Modify Expenditure File
+# Expenditure & Revenue
+## Modify Expenditure File
 
 ### Tax refunds 
 
@@ -1435,7 +1486,7 @@ Note that these are the raw figures BEFORE we take the additional steps:
 - Subtract employee insurance premiums from State Employee Healthcare expenditures  
 - Subtract tax refunds from tax revenues by revenue type.  
 
-# Modify  Revenue data
+## Modify  Revenue data
 
 
 Revenue Categories NOT included in Fiscal Futures:   
@@ -1446,7 +1497,8 @@ Revenue Categories NOT included in Fiscal Futures:
 - 72.  Bond Issue Proceeds.  (Not sustainable flow.)     
 - 75.  Inter-Agency Receipts.  
 - 79.  Cook County Intergovernmental Transfers.  (State is not beneficiary.)  
-- 98.  Prior Year Refunds.    
+- 98.  Prior Year Refunds.   
+- 99.  Statutory Transfers.   
 
 **All Other Sources** 
 
@@ -1491,10 +1543,10 @@ rev_temp <- rev_temp %>%
 rev_temp <- rev_temp %>% 
   mutate(
     rev_type = ifelse(rev_type=="57" & agency=="478" & (source=="0618"|source=="2364"|source=="0660"|source=="1552"| source=="2306"| source=="2076"|source=="0676"|source=="0692"), "58", rev_type),
-    rev_type_name = ifelse(rev_type=="58", "FEDERAL TRANSPORTATION", rev_type_name),
+    rev_type_name = ifelse(rev_type=="58", "Federal Medicaid Reimbursements", rev_type_name),
     rev_type = ifelse(rev_type=="57" & agency=="494", "59", rev_type),
-    rev_type_name = ifelse(rev_type=="59", "FEDERAL TRANSPORTATION", rev_type_name),
-    rev_type_name = ifelse(rev_type=="57", "FEDERAL OTHER", rev_type_name),
+    rev_type_name = ifelse(rev_type=="59", "Federal Transportation", rev_type_name),
+    rev_type_name = ifelse(rev_type=="57", "Federal - Other", rev_type_name),
     rev_type = ifelse(rev_type=="6", "06", rev_type),
     rev_type = ifelse(rev_type=="9", "09", rev_type)) 
 
@@ -1503,10 +1555,12 @@ rev_temp %>%
   group_by(fy, rev_type, rev_type_name) %>% 
   summarise(receipts = sum(receipts, na.rm = TRUE)/1000000) %>% 
   ggplot() +
-  geom_line(aes(x=fy, y=receipts,color=rev_type)) +
+  geom_line(aes(x=fy, y=receipts,color=rev_type_name)) +
+      theme_bw() +
+  scale_y_continuous(labels = comma)+
   labs(title = "Federal to State Transfers", 
-       y = "Millions of Dollars", x = "",
-       caption = "57 = Other; 58 = Medicaid Reimbursements; 59=Transportation")
+       y = "Millions of Dollars", x = "") + 
+  theme(legend.position = "bottom", legend.title = element_blank()  )
 ```
 
 ### Health Insurance Premiums from Employees
@@ -1619,8 +1673,8 @@ rev_temp %>%
 # combines smallest 4  categories to to "Other"
 # they were the 4 smallest in past years, are they still the 4 smallest? 
 
-#rev_temp <- rev_temp %>%  
-#  mutate(rev_type_new = ifelse(rev_type=="30" | rev_type=="60" | rev_type=="63" | rev_type=="76", "78", rev_type_new))
+rev_temp <- rev_temp %>%  
+ mutate(rev_type_new = ifelse(rev_type=="30" | rev_type=="60" | rev_type=="63" | rev_type=="76", "78", rev_type_new))
 
 
 #table(rev_temp$rev_type_new)  # check work
@@ -1631,7 +1685,7 @@ rm(exp_1998_2022)
 ```
 
 
-# Pivoting and Merging
+## Pivoting and Merging
 
 - State employer group insurance contributions should be dropped to avoid double counting costs.    
 - Subtract employee insurance premiums from State Employee Healthcare Expenditures (group == 904) - Employee Premiums = Actual state healthcare costs.  
@@ -1789,8 +1843,7 @@ Create total revenues and total expenditures only:
 
 - after aggregating expenditures and revenues, pivoting wider, and left_joining the additional mini dataframes (med_option_recent, pension2_fy22, eehc2_amt), then I want to drop the columns that I no longer want and then pivot_longer(). After pivoting_longer() and creating `rev_long` and `exp_long`, expenditures and revenues are in the same format and can be combined together for the totals and gap each year.   
 
-
-```{r rev-exp-totals-long}
+```{r rev-exp-totals-long-oldcatnames, eval=FALSE, include=FALSE}
 rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
   rename(Year = fy) %>%
   mutate(Category_name = case_when(
@@ -1849,6 +1902,120 @@ exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Categor
              Category == "444" ~ "HUMAN SERVICES" ,
              Category == "448" ~ "Innovation and Technology", # AWM added fy2022
              Category == "478" ~ "HEALTHCARE & FAM SER NET OF MEDICAID", 
+             Category == "482" ~ "PUBLIC HEALTH", 
+             Category == "492" ~ "REVENUE", 
+             Category == "494" ~ "TRANSPORTATION" ,
+             Category == "532" ~ "ENVIRONMENTAL PROTECT AGENCY" ,
+             Category == "557" ~ "IL STATE TOLL HIGHWAY AUTH" ,
+             Category == "684" ~ "IL COMMUNITY COLLEGE BOARD", 
+             Category == "691" ~ "IL STUDENT ASSISTANCE COMM" ,
+             Category == "900" ~ "NOT IN FRAME",
+             Category == "901" ~ "STATE PENSION CONTRIBUTION",
+             Category == "903" ~ "DEBT SERVICE",
+             Category == "904" ~ "State Employee Healthcare",
+             Category == "910" ~ "LEGISLATIVE"  ,
+             Category == "920" ~ "JUDICIAL" ,
+             Category == "930" ~ "ELECTED OFFICERS" , 
+             Category == "940" ~ "OTHER HEALTH-RELATED", 
+             Category == "941" ~ "PUBLIC SAFETY" ,
+             Category == "942" ~ "ECON DEVT & INFRASTRUCTURE" ,
+             Category == "943" ~ "CENTRAL SERVICES",
+             Category == "944" ~ "BUS & PROFESSION REGULATION" ,
+             Category == "945" ~ "MEDICAID" ,
+             Category == "946" ~ "CAPITAL IMPROVEMENT" , 
+             Category == "948" ~ "OTHER DEPARTMENTS" ,
+             Category == "949" ~ "OTHER BOARDS & COMMISSIONS" ,
+             Category == "959" ~ "K-12 EDUCATION" ,
+             Category == "960" ~ "UNIVERSITY EDUCATION",
+             Category == "970" ~ "Local Govt Transfers",
+             T ~ "CHECK ME!")
+           ) %>% 
+  mutate(Category_name = str_to_title(Category_name))
+
+#write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
+#write_csv(rev_long, "revenue_recoded_long_FY22.csv")
+
+aggregated_totals_long <- rbind(rev_long, exp_long)
+aggregated_totals_long
+
+
+year_totals <- aggregated_totals_long %>% 
+  group_by(type, Year) %>% 
+  summarize(Dollars = sum(Dollars, na.rm = TRUE)) %>% 
+  pivot_wider(names_from = "type", values_from = Dollars) %>% 
+  rename(
+         Expenditures = exp,
+         Revenue = rev) %>%  
+  mutate(Gap = Revenue - Expenditures) %>% 
+  arrange(desc(Year))
+# creates variable for the Gap each year
+
+year_totals
+
+#write_csv(aggregated_totals_long, "aggregated_totals.csv")
+
+```
+
+
+```{r rev-exp-totals-long}
+rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(Year = fy) %>%
+  mutate(Category_name = case_when(
+    Category == "02" ~ "INDIVIDUAL INCOME TAXES" ,
+    Category == "03" ~ "CORPORATE INCOME TAXES" ,
+    Category == "06" ~ "SALES TAXES" ,
+    Category == "09" ~ "MOTOR FUEL TAX" ,
+    Category == "12" ~ "PUBLIC UTILITY TAXES" ,
+    Category == "15" ~ "CIGARETTE TAXES" ,
+    Category == "18" ~ "LIQUOR GALLONAGE TAXES" ,
+    Category == "21" ~ "INHERITANCE TAX" ,
+    Category == "24" ~ "INSURANCE TAXES&FEES&LICENSES" ,
+    Category == "27" ~ "CORP FRANCHISE TAXES & FEES" ,
+    Category == "30" ~ "HORSE RACING TAXES & FEES",  # in Other
+    Category == "31" ~ "MEDICAL PROVIDER ASSESSMENTS" ,
+    Category == "32" ~ "GARNISHMENT-LEVIES" , # dropped
+    Category == "33" ~  "LOTTERY RECEIPTS" ,
+    Category == "35" ~  "OTHER TAXES" ,
+    Category == "36" ~  "RECEIPTS FROM REVENUE PRODUCING", 
+    Category == "39" ~  "LICENSES, FEES & REGISTRATIONS" ,
+    Category == "42" ~  "MOTOR VEHICLE AND OPERATORS" ,
+    Category == "45" ~  "STUDENT FEES-UNIVERSITIES",   # dropped
+    Category == "48" ~  "RIVERBOAT WAGERING TAXES" ,
+    Category == "51" ~  "RETIREMENT CONTRIBUTIONS" , # dropped
+    Category == "54" ~ "GIFTS AND BEQUESTS", 
+    Category == "57" ~  "FEDERAL OTHER" ,
+    Category == "58" ~  "FEDERAL MEDICAID", 
+    Category == "59" ~  "FEDERAL TRANSPORTATION" ,
+    Category == "60" ~  "OTHER GRANTS AND CONTRACTS", #other
+    Category == "63" ~  "INVESTMENT INCOME", # other
+    Category == "66" ~ "PROCEEDS,INVESTMENT MATURITIES" , #dropped
+    Category == "72" ~ "BOND ISSUE PROCEEDS",  #dropped
+    Category == "75" ~  "INTER-AGENCY RECEIPTS ",  #dropped
+    Category == "76" ~  "TRANSFER IN FROM OUT FUNDS",  #other
+    Category == "78" ~  "ALL OTHER SOURCES" ,
+    Category == "79" ~   "COOK COUNTY IGT", #dropped
+    Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
+                 T ~ "Check Me!"
+
+  ) )%>% 
+  mutate(Category_name = str_to_title(Category_name))
+
+
+exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(Year = fy ) %>% 
+  mutate(Category_name = 
+           case_when(
+             Category == "402" ~ "AGING" ,
+             Category == "406" ~ "AGRICULTURE", 
+             Category == "416" ~ "CENTRAL MANAGEMENT",
+             Category == "418" ~ "CHILDREN AND FAMILY SERVICES", 
+             Category == "420" ~ "COMMERCE AND ECONOMIC OPPORTUNITY",
+             Category == "422" ~ "NATURAL RESOURCES" ,
+             Category == "426" ~ "CORRECTIONS",
+             Category == "427" ~ "EMPLOYMENT SECURITY" ,
+             Category == "444" ~ "HUMAN SERVICES" ,
+             Category == "448" ~ "Innovation and Technology", # AWM added fy2022
+             Category == "478" ~ "FAMILY SERVICES net Medicaid", 
              Category == "482" ~ "PUBLIC HEALTH", 
              Category == "492" ~ "REVENUE", 
              Category == "494" ~ "TRANSPORTATION" ,
@@ -2031,7 +2198,7 @@ exp_long %>%
 rev_long %>%
   filter( Year == 2022) %>%
   mutate(rank = rank(Dollars),
-        Category_name = ifelse(rank > 10, Category_name, 'All Other Revenue Sources')) %>%
+        Category_name = ifelse(rank > 10, Category_name, 'All Other Sources')) %>%
   arrange(desc(Dollars)) %>%
   ggplot() + 
   geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`), fill = "light blue")+ 
