@@ -406,23 +406,15 @@ rev_temp <- rev_temp %>%
 
 Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
 
-
-_"Even when the state did make substantial contributions, it was often done in a manner that partly reduced the impact of the funding. For example, then-Governor Blagojevich issued $10 billion of Pension Obligation Bonds (POBs) in 2003. Although this helped boost the funding status of the plans, the authorizing legislation also provided that state contributions be reduced by the amount of principal and interest paid on the bonds (CoGFA 2014). Effectively, the state was borrowing money, investing it in the pension funds, and betting that the returns on the pension portfolio would exceed interest paid on the bonds. Then in Fiscal Years 2006 and 2007, the state enacted "pension holidays" to reduce its contributions for those years below that specified in the already back-loaded 1994 law. POBs were issued again in FY 2010 and FY 2011, in each case with the proceeds being treated as part of that year's pension contributions. It is important to note that this approach to using POBs does virtually nothing to boost the pension plan's funding status over the long-term" - "Basket Case" by Dye 2015_
-
-For the $10 billion in 2004, they borrowed money and invested it in pension portfolio and hoped that the returns would be greater than the interest on the debt. If returns>interest, then they increased the pension funds and it was a good idea. Otherwise a short term band-aid causes even more problems later. This added a significant amount to the unfunded pension liabilities.
-
-In 2010 and 2011, POBs were used a different way. POBs served as a type of general borrowing for the state by borrowing against what was owed to the pension systems and using that revenue that should have funded pensions to instead subsidize the cost of providing core services.  Illinois borrowed money (POBs) and used it to pay for government services. A very classic example of using a one shot-revenue source to fill a budget gap that then costs more in the long run due to increased unfunded liabilities and interest on the borrowed money. 
+For the $10 billion in 2004, they borrowed money and invested it in pension portfolio and hoped that the returns would be greater than the interest on the debt. If returns>interest, then they increased the pension funds and it was a good idea. Otherwise a short term band-aid causes even more problems later. This added a significant amount to the unfunded pension liabilities. In 2010 and 2011, POBs were used a different way. POBs served as a type of general borrowing for the state by borrowing against what was owed to the pension systems and using that revenue that should have funded pensions to instead subsidize the cost of providing core services.  Illinois borrowed money (POBs) and used it to pay for government services. A very classic example of using a one shot-revenue source to fill a budget gap that then costs more in the long run due to increased unfunded liabilities and interest on the borrowed money. - "Basket Case" by Dye 2015
 
 In 2019 lawmakers offered a pension buyout plan where members could opt-out of their future
-benefits for a lump sum. However, few people participated in the buyout plan and very little savings occured. The buyout plan has been extended to 2026 in hopes that more people participate in it.
+benefits for a lump sum. However, few people participated in the buyout plan and very little savings occurred. The buyout plan has been extended to 2026 in hopes that more people participate in it. The pension stabilization fund (0319) is money put into the pension funds to help with the long-run fiscal imbalance. 
 
-The pension stabilization fund (0319) is actually extra money put into the pension funds to help with the long-run deficit. 
-
-
-__For yearly expenditure calculations, the state contributions to the pension funds (object = 4430) should be the expenditure included for pensions. If trying to look at the bigger fiscal health picture and include unfunded liabilities and in/out flows, then items like purchase of investments and large spikes that occurred from policy changes should be included. Again, State contributions TO the pension funds are the expenditures BUT an additional graph/discussion on the employer contributions, employee contributions, and benefits paid out should be included and considered for additional context on Illinois' situation.__
+__For yearly expenditure calculations, the state contributions to the pension funds (object = 4430) should be the expenditure included for pensions. If trying to look at the bigger fiscal health picture and include unfunded liabilities and in/out flows, then items like purchase of investments and POB spikes that occurred from policy changes should be included. Again, State contributions TO the pension funds are the expenditures BUT an additional graph/discussion on the employer contributions, employee contributions, and benefits paid out should be included and considered for additional context on Illinois' situation.__
 
 
-Pension funding ratio could be calculated using only the pension plan benefits paid out OR it could include both the benefits paid out and the POB funded contributions. "Kriz argues that a _net amortization calculation_ – one that takes into account the amount necessary to pay retiree benefits and pay off the unfunded liability over time at a level dollar amount – represents a more suitable way of calculating the contribution to pay retiree benefits, reduce the unfunded liability, and return to a reasonable funded ratio."
+Pension funding ratio could be calculated using only the pension plan benefits paid out OR it could include both the benefits paid out and the POB funded contributions. 
 
 
 State payments to the following pension systems:  
@@ -1838,7 +1830,8 @@ rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"),
     Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
                  T ~ "Check Me!"
 
-  ) )
+  ) )%>% 
+  mutate(Category_name = str_to_title(Category_name))
 
 
 exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
@@ -1861,8 +1854,8 @@ exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Categor
              Category == "494" ~ "TRANSPORTATION" ,
              Category == "532" ~ "ENVIRONMENTAL PROTECT AGENCY" ,
              Category == "557" ~ "IL STATE TOLL HIGHWAY AUTH" ,
-             #Category == "684" ~ "IL COMMUNITY COLLEGE BOARD", 
-             #Category == "691" ~ "IL STUDENT ASSISTANCE COMM" ,
+             Category == "684" ~ "IL COMMUNITY COLLEGE BOARD", 
+             Category == "691" ~ "IL STUDENT ASSISTANCE COMM" ,
              Category == "900" ~ "NOT IN FRAME",
              Category == "901" ~ "STATE PENSION CONTRIBUTION",
              Category == "903" ~ "DEBT SERVICE",
@@ -1883,7 +1876,8 @@ exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Categor
              Category == "960" ~ "UNIVERSITY EDUCATION",
              Category == "970" ~ "Local Govt Transfers",
              T ~ "CHECK ME!")
-           )
+           ) %>% 
+  mutate(Category_name = str_to_title(Category_name))
 
 #write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
 #write_csv(rev_long, "revenue_recoded_long_FY22.csv")
