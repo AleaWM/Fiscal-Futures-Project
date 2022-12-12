@@ -1,7 +1,7 @@
 ---
 title: "FY2022 Analysis - Methodology for Fiscal Futures "
 author: "Alea Wilbur"
-date: "November 2022"
+date: "December 6 2022"
 output:
   html_document:
     code_folding: hide
@@ -34,6 +34,16 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 #, cache = TRUE)
 ```
 
+# Data Creation and Cleaning
+
+- Do the FOIA request. In a week or so, they send the expenditure and revenue data as excel files.   
+- Checks whether there are any new agencies, re-used funds etc. Create a list of funds, agencies, fund names, etc. for the new year and compare it to the immediate prior year to identify new funds.   
+- Update the funds_ab_in file which shows the use of funds. Use criteria to determine if the new funds should be in or out of the all-funds frame.   
+- Change the variable names to be consistent with other files such as AGENCYNAME --> agency_name   
+
+- Once variable names are shared over all years of data, combine past years with newest year. All revenue files are in a `revenue` folder that I reference when I set the working directory. When adding new fiscal years, put the the newest year of data for revenue and expenditures in their respective folders. 
+
+Normally, when your receive the new fiscal year files from the Comptrollers office, you will need to change the variable names so that they are consistent with past years. This is an example of reading in the new file and changing the variable names. They seem to change almost every year in the file received from the FOIA so if the code breaks here, check to make sure that the columns you are trying to rename exist and are spelled correctly! Once variables are the same, you will want to save the file as a csv file in its Revenue/Expenditure file and bind all past years and the current year together in one dataframe. 
 
 ```{r rename-variables}
 
@@ -76,6 +86,36 @@ exp_fy22 <- read_xlsx("Fis_Fut_Exp_2022_Final.xlsx") %>%
 
 ```
 
+ 
+The code chunk below takes the .dta files for all fiscal years before FY 2022 and binds them together.  Variable names were manually changed by past researchers so that they were consistent across years.
+
+For FY 2023 and after, .dta files can be avoided entirely and .csv or excel files will be used. All files before this year had been saved and passed on as .dta files for Stata code before the transition to R in Fall 2022.  For years after fy22: add line of code to bind csv files after binding the dta files together. Variable names must identical to merge files together.
+
+```{r create-rev-csv-FY22, include=FALSE, eval=FALSE}
+# years after fy22: add line of code to bind csv files after binding the dta files.
+setwd("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/revenue")
+
+allrevfiles22 = list.files(path = "C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/revenue",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows
+#Fy21: 62294 observations, 13 variables
+#FY22: 65094 obs, 13 vars
+
+write_csv(allrevfiles22, "allrevfiles22.csv")
+
+
+
+
+setwd("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/expenditures")
+
+allexpfiles22 = list.files(path = "C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/expenditures",  pattern = ".dta") %>%  lapply(read_dta) %>% bind_rows
+
+#fy21 213372 observations, 20 variables
+# fy22 225587 obs, 21 vars.
+
+write_csv(allexpfiles22, "allexpfiles22.csv")
+
+
+```
+
 
 Code below reads in the csv files created in chunks above (allrevfiles.csv and allrexpfiles.csv). These files contain all years of data combined into one file BEFORE any recoding is done. Do not use this file for summing categories because it is just an inbetween step before recoding revenue and expenditure categories. 
 
@@ -89,6 +129,21 @@ allexpfiles22 <- read_csv("allexpfiles22.csv") #combined but not recoded
 
 
 
+
+
+
+
+ 
+```{r eval = FALSE, include = FALSE}
+# not sure if this chunk is needed or useful at all. 
+# Something similar was done in old stata code but not consistently and it wasn't used.
+# Agency == 799 for Statutory transfers 
+#  Object == 1993 is for Interfund cash transfers  
+exp_temp <- exp_temp %>% 
+  mutate(transfer = ifelse(org_name == "TRANSFERS", 1, 0),
+         trans_agency = ifelse(),
+         trans_type = ifelse())
+```
 
 ## Inspecting new FY22 data files
 
@@ -106,9 +161,108 @@ Expenditure File:
 - 98 Organization Numbers   
 - 313 Organization names  
 
+### Finding new agencies and funds
+
+General steps:  
+1. Identify new and reused funds for newest fiscal year. 
+2. Recode funds to take into account different fund numbers/names over the years. See [Recoding New and Reused Funds] for code chunk that does this. 
+3. Update fund_ab_in_2022.xlsx with any changes from previous fiscal year.   
+
+
+**New Agencies, Funds, and Organizations from Expenditure files:**
+
+- Using the code below, I found 2 agencies, multiple funds, and a couple organizations that had not been specifically mentioned in the funds_ab_in file - AWM, FY2022.
+  - Note: One new org name and org number combo has an expenditure of $600 million for pensions payment. Investigate later.  
+
+```{r}
+
+allrevfiles22 <- read_csv("allrevfiles22.csv") #combined but not recoded
+allexpfiles22 <- read_csv("allexpfiles22.csv") #combined but not recoded
+
+#### From Expenditure Data #####
+
+# agencies referenced in any year before 2020:
+agencies_past <- allexpfiles22 %>% filter(fy < 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% unique() %>% summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>% drop_na() %>% arrange(agency)
+# agencies_past # 146 agencies ever
+
+
+# agencies in 2022 data:
+agencies22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% summarize(expenditure = sum(expenditure, na.rm = TRUE))
+# agencies22 # 107 agencies this year
+
+
+# 280 and 533 are new agency codes: 
+anti_join(agencies22, agencies_past, by = c("agency", "agency_name")) %>% arrange(agency)
+
+
+
+
+funds_past <- allexpfiles22  %>% filter(fy < 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>% summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE))  %>% drop_na()
+
+funds22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>%  summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE)) %>% unique()
+
+
+# 15 funds were in FY22 data that were not in past data:
+anti_join(funds22, funds_past, by = c("fund", "fund_name")) %>% arrange(fund)
+
+# orgs_pastin the past =  916 org groups ever
+orgs_past <- allexpfiles22  %>% filter(fy < 2022) %>% mutate(appr_org == as.character(appr_org)) %>% group_by(appr_org, org_name) %>% unique() %>% summarize(Expenditure = sum(expenditure, na.rm = TRUE)) %>% drop_na()
+
+# orgs_past # 916 org groups ever
+orgs22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(appr_org = as.character(appr_org)) %>% group_by(appr_org, org_name) %>% summarize(Expenditure = sum(expenditure, na.rm = TRUE))
+# orgs22 # 396 org groups this year
+
+
+# 4 org number and org name combos are new for FY2022:
+anti_join(orgs22, orgs_past, by = c("appr_org", "org_name")) %>% arrange(appr_org)
+```
+
+
+**New Revenue Funds, Sources, and New Agencies:**
+
+```{r}
+#### From Revenue Data ####
+
+
+
+# agencies_past # 108 agencies ever
+agencies_past <- allrevfiles22  %>% filter(fy < 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% unique() %>% summarize(Receipts = sum(receipts, na.rm = TRUE)) %>% drop_na()
+
+
+# agencies22 # 80 agencies this year
+agencies22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% summarize(Receipts = sum(receipts, na.rm = TRUE))
+
+# 0 new agencies in revenue data this year
+anti_join(agencies22, agencies_past, by = c("agency", "agency_name")) %>% arrange(agency)
+
+
+funds_past <- allrevfiles22  %>% filter(fy < 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>% summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %>% drop_na()
+
+funds22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>%  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %>% unique() %>% drop_na()
+
+# 19 revenue funds were in FY22 revenue data that were not in past data 
+# some could be small fund name changes
+anti_join(funds22, funds_past, by = c("fund", "fund_name")) %>% arrange(fund)
+
+
+
+sources_past <- allrevfiles22  %>% filter(fy < 2022) %>% mutate(source == as.character(source)) %>% group_by(source, source_name) %>% summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %>% drop_na()
+
+sources22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(source == as.character(source)) %>% group_by(source, source_name) %>%  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %>% unique()
+
+
+# 20 revenue sources were in FY22 data that were not in past data 
+# some could be small source name changes:
+anti_join(sources22, sources_past, by = c("source", "source_name")) %>% arrange(source)
+
+```
+
+Sources 2737 through 2756 were not found in the IOC_source file so I added them. They do NOT have a rev_type until the Fiscal Futures researchers discuss which revenue type the sources fall under and if they should be included in the analysis in general.
+
+
 ### Recoding New and Reused Funds
 
-New funds will need to be manually added to the funds_ab_in excel file and determined if they should or should not be included in Fiscal Future calculations. 
+New funds will need to be manually added to the funds_ab_in excel file and determined if they should or should not be included in Fiscal Future calculations. __Copy info from word file here on how to add funds to excel file__.
 
 For funds that were reused once, a 9 replaces the 0 as the first digit. If reused twice, then the first two values are 10.   
 - Ex. 0350 --> 9350 because its use changed.   
@@ -116,9 +270,7 @@ For funds that were reused once, a 9 replaces the 0 as the first digit. If reuse
 - Excel file also has alternative ways to name funds (e.g. 0397-A and 0397-B) and variables for the year that the fund stopped being used. These have not been updated consistently over the years but it is useful information when trying to find any coding mistakes from the past.   
 
 New or reused funds revenue file recoding:
-```{r recode-reused-funds}
-
-### revenue recoding: #####
+```{r recode-rev-funds}
 # if first character is a 0, replace with a 9 if its purpose has changed
 
 rev_1998_2022 <- allrevfiles22 %>%
@@ -145,9 +297,11 @@ rev_1998_2022 <- allrevfiles22 %>%
   mutate(fund = ifelse(fy < 2022 & fund %in% c("0110","0165","0351", "0392", "0393", "0422", "0544", "0628", "0634",  "0656", "0672", "0683", "0723", "0742", "0743"), str_replace(fund, "0","9"), as.character(fund))) %>%  # replaces first 0 it finds with a 9
   mutate(fund = ifelse(fy < 2022 & fund == "0367", "10367", as.character(fund)) # fund reused for 3rd time
 )
+```
 
-### Expenditure recoding: ####
- 
+Expenditure recoding: 
+
+```{r recode-exp-funds}
 # if first character is a 0, replace with a 9
 
 exp_1998_2022 <- allexpfiles22 %>%
@@ -174,12 +328,14 @@ exp_1998_2022 <- allexpfiles22 %>%
   mutate(fund = ifelse(fy < 2022 & fund == "0367", "10367", as.character(fund)) # fund reused for 3rd time 
   )
 
+```
 
+The `funds_ab_in.xlsx` file contains all funds that have existed since 1998, if they still exist, indicates if fund numbers have been reused for varying purposes, and is updated yearly with new fund numbers used by the IOC.
+
+```{r create-exp_temp, warning = FALSE, message = FALSE}
 funds_ab_in_2022 = readxl::read_excel("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/funds_ab_in_2022.xlsx")
 
 
-
-# join expenditures and file that has fund information and inclusion status
 exp_temp <- exp_1998_2022 %>% 
   arrange(fund, fy) %>%
   filter(expenditure != 0) %>%             # keeps everything that is not zero
@@ -192,6 +348,8 @@ exp_temp <- exp_1998_2022 %>%
 
 
 ```{r remove-all_obs_df, include=FALSE}
+#include = FALSE in the chunk settings run the code but do not include the chunk in the html output
+
 # remove from computer memory to free up space (in case your computer needs it)
 rm(allexpfiles22)
 rm(allrevfiles22)
@@ -199,7 +357,7 @@ rm(exp_fy22)
 rm(revenue_fy22)
 ```
 
-Update Agencies: Early agencies replaced by successors
+Update Agencies: Some agencies have merged with others or changed names over time.
 ```{r agencies-exp}
 # recodes old agency numbers to consistent agency number
 exp_temp <- exp_temp %>% 
@@ -217,7 +375,7 @@ exp_temp <- exp_temp %>%
 
 
 
-For aggregating revenue, use the rev_1998_2022 dataframe, join the funds_ab_in_2022 file to it, and then join the ioc_source_type file to the dataset. 
+For aggregating revenue, use the rev_1998_2022 dataframe, join the funds_ab_in_2022 file to it, and then join the ioc_source_type file to the dataset. Remember: You need to update the funds_ab_in and ioc_source_type file every year! 
 
 ```{r create-rev-temp, warning = FALSE, message=FALSE}
 # fund info to revenue for all years
@@ -249,45 +407,35 @@ rev_temp <- rev_temp %>%
 
 ## Pension Discusion
 
+__For yearly expenditure calculations, the state contributions to the pension funds (object = 4430) should be the expenditure included for pensions. If trying to look at the bigger fiscal health picture and include unfunded liabilities and in/out flows, then items like purchase of investments and POB spikes in trends that occurred from policy changes should be included. Again, State contributions TO the pension funds are the expenditures BUT an additional graph/discussion on the employer contributions, employee contributions, and benefits paid out should be included and considered for additional context on Illinois' situation.__
 
-Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
-
-For the $10 billion in 2004, they borrowed money and invested it in pension portfolio and hoped that the returns would be greater than the interest on the debt. If returns>interest, then they increased the pension funds and it was a good idea. Otherwise a short term band-aid causes even more problems later. This added a significant amount to the unfunded pension liabilities. In 2010 and 2011, POBs were used a different way. POBs served as a type of general borrowing for the state by borrowing against what was owed to the pension systems and using that revenue that should have funded pensions to instead subsidize the cost of providing core services.  Illinois borrowed money (POBs) and used it to pay for government services. A very classic example of using a one shot-revenue source to fill a budget gap that then costs more in the long run due to increased unfunded liabilities and interest on the borrowed money. - "Basket Case" by Dye 2015
-
-In 2019 lawmakers offered a pension buyout plan where members could opt-out of their future
-benefits for a lump sum. However, few people participated in the buyout plan and very little savings occurred. The buyout plan has been extended to 2026 in hopes that more people participate in it. The pension stabilization fund (0319) is money put into the pension funds to help with the long-run fiscal imbalance. 
-
-__For yearly expenditure calculations, the state contributions to the pension funds (object = 4430) should be the expenditure included for pensions. If trying to look at the bigger fiscal health picture and include unfunded liabilities and in/out flows, then items like purchase of investments and POB spikes that occurred from policy changes should be included. Again, State contributions TO the pension funds are the expenditures BUT an additional graph/discussion on the employer contributions, employee contributions, and benefits paid out should be included and considered for additional context on Illinois' situation.__
-
-
-Pension funding ratio could be calculated using only the pension plan benefits paid out OR it could include both the benefits paid out and the POB funded contributions. 
-
-
-State payments to the following pension systems:  
+Pension expenditures referenced in the analysis are based on state payments to the following pension systems:  
 
 • Teachers Retirement System (TRS)  
 - New POB bond in 2019: Accelerated Bond Fund paid benefits in advance as lump sum   
 • State Employee Retirement System (SERS)  
 • State University Retirement System (SURS)  
 • Judges Retirement System (JRS)  
-• General Assembly Retirement System (GARS)  
+• General Assembly Retirement System (GARS)
 
-- Includes pension stabilization fund = 0319, object = 1900 and the $300 million investment in FY2022.  
+**Additional context:**   
+For the $10 billion in 2004, they borrowed money and invested it in pension portfolio and hoped that the returns would be greater than the interest on the debt. If returns>interest, then they increased the pension funds and it was a good idea. Otherwise a short term band-aid causes even more problems later. This added a significant amount to the unfunded pension liabilities. In 2010 and 2011, POBs were used a different way. POBs served as a type of general borrowing for the state by borrowing against what was owed to the pension systems and using that revenue that should have funded pensions to instead subsidize the cost of providing core services.  Illinois borrowed money (POBs) and used it to pay for government services. A very classic example of using a one shot-revenue source to fill a budget gap that then costs more in the long run due to increased unfunded liabilities and interest on the borrowed money. - "Basket Case" by Dye 2015
 
+In 2019 lawmakers offered a pension buyout plan where members could opt-out of their future benefits for a lump sum. However, few people participated in the buyout plan and very little savings have occurred so far. The buyout plan has been extended to 2026 in hopes that more people participate in it. Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm). Proceeds of bonds go into pension obligation accelaration fund (which are not included as a revenue source) and the fund is only used to make accelerated pension benefit payments. The pension stabilization fund (0319) is money put into the pension funds to help with the long-run fiscal imbalance. 
+
+**Data coding details**    
 - State pension contributions are largely captured with object=4431. **(State payments into pension fund)**    
   - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
-  - does not capture recent pension stabilization payments 
+  - Object 4431 does not capture recent pension stabilization fund which is fund = 0319, object = 1900 and has $300 million investment in FY2022.  
 
-- 0475 is the Municipal Retirement Fund - Not included because state just helps collect and disperse local pension funds. IMRF is most funded pension fund in Illinois.  Fund ends in 2015. All were considered purchase of investments. 
+
+- Fund=0475 is the Municipal Retirement Fund - Not included because state just helps collect and disperse local pension funds. IMRF is most funded pension fund in Illinois.  Fund ends in 2015. All were considered purchase of investments. 
 
 - IOC objects 1160-1165 are all retirement objects. I believe they are employer contributions into the pension fund?
 
+- Some expenditures with object=4430 were paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. Code logic was unclear. We are no longer doing this as of FY2021.   
 
-Employer contributions for pensions are excluded from analysis to avoid double counting the cost of pensions. Expenditures with object 4430 for pensions, benefits, and annuities  appears in items from funds 0473, 0477, 0479, 0481, (TRS, JRS, SERS, GARS), 0755, 0786, 0787, 0788, 0789, 0799 (deferred compensation plan, GAR excess benefit, JRS excess benefit, SER excess benefit, TRS excess benefit, state university retirement system) are NOT included in the analysis. All are coded with in_ff=0 in the fund_ab_in.xlsx file of funds.   
-
-- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. We are no longer doing this as of FY2021.   
-
-- Other types of pension expenditures to consider: Pension obligation acceleration bond, state pension obligation bond reimbursements, pension pickup, accelerated pension buy-out (bond financed funds)   
+- Other types of pension expenditures to consider when looking at pension funds: Pension obligation acceleration bond, state pension obligation bond reimbursements, pension pickup, accelerated pension buy-out (bond financed funds)   
 
   
   
@@ -295,11 +443,13 @@ Other items to be aware of that may contain useful pension context:
 
 - object = 1298 is for Purchase of Investments and is excluded from analysis. In past analyses, there were a couple of exceptions during 2010 and 2011.      
   - Purchase of Investments captures the pension obligation bonds issued in 2003-2004 and again in 2010-2011.  
-- object = 1900 for pension stabilization under lump sums  
+- object = 1900 for pension stabilization is under lump sums  
 - object = 1167 and 1168 is for Employer pension contributions but is not used by IOC yet as of FY2022.  
 - object 4900 is awards and grants lump sum   
-- object 1993 is interfund cash transfers-always dropped     
  
+ 
+Employer contributions for pensions are excluded from analysis to avoid double counting the cost of pensions. Expenditures with object 4430 for pensions, benefits, and annuities  appears in items from funds 0473, 0477, 0479, 0481, (TRS, JRS, SERS, GARS), 0755, 0786, 0787, 0788, 0789, 0799 (deferred compensation plan, GAR excess benefit, JRS excess benefit, SER excess benefit, TRS excess benefit, state university retirement system) are NOT included in the analysis. All are coded with in_ff=0 in the fund_ab_in.xlsx file of funds. 
+
 ```{r pension-check}
 
 # check what is being included in pensions
@@ -311,7 +461,7 @@ pension_check <- exp_temp %>%
   mutate(pension = case_when( 
   object == "4430" & fund == "0825" ~ "Object 4430 - Pension Buyout/Benefits Paid Early; INCLUDED",
     (object=="4430") ~ "Object 4430 - Benefits Paid to Employees; EXCLUDED", # pensions, annuities, benefits
-    (object=="4431") ~ "Object 4431 - State Pension Contributions; INCLUDED", # 4431 = state payments into pension fund
+    (object=="4431") ~ "Object 4431 - State Contributions; INCLUDED", # 4431 = state payments into pension fund
         (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "Object 1160-1165 Employer Contributions to Pension Fund; EXCLUDED",
     # objects 1159 to 1166 are all considered Retirement by Comptroller 
     
@@ -338,8 +488,8 @@ pension_check %>% group_by(fy, pension) %>%
   geom_line() + 
 
   labs (title = "Pension Fund Payments In and Retirement Benefits Out", 
-  caption = "Shows items from objects 4430 as employer pension expenditures (retirement benefits paid). 
-  Object = 4431 includes state payments INTO pension Fund.
+  caption = "Object 4430 is retirement benefits paid to employees. 
+  Object 4431 includes state payments INTO pension Fund.
   Object 1998 is excluded except for years 2010 and 2011 due to POBs.")+
     theme(legend.position = "bottom")+
   guides(color = guide_legend(nrow=3))
@@ -405,23 +555,14 @@ pension_picture %>% group_by(fy, pension) %>%
   caption = "")+
     theme(legend.position = "bottom", legend.title = element_blank())#+ guides(color = guide_legend(nrow=2))
 
-pension_check %>% group_by(fy, object) %>% 
-  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
-  ggplot(aes(x=fy, y = expenditure, color = object)) + 
-  geom_line() + 
-  labs (title = "Expenditures by Object")
 ```
 
-
-Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
-
+Employer contributions and state pension contributions are an example of an expenditure being double counted if both are included. 
 
 ### Pension Contributions
 
   
-- rev_type = 51 is for retirement contributions
-
-
+rev_type = 51 is for retirement/pension contributions from both employers and employees. These contributions from employers and employees are not considered a revenue source from the state and are excluded from the Fiscal Futures analysis. However, it is still important to understand the money going in and out of then pension funds even if it is not included as a yearly expenditure or revenue. Retirement contribution revenue is graphed below.
 ```{r}
 
 # current year employee revenue source = 0573, contributions by employee == 572 (stops at 2011)
@@ -483,7 +624,8 @@ pension_picture %>% group_by(fy, pension) %>%
   Orange - employer contributions INTO the fund.")+
     theme(legend.position = "bottom", legend.title = element_blank())
 ```
-_Earlier I argued that `pension_rev` should be subtracted from the state pension expenditures. Employee contributions to pensions are a revenue source. We want net pension cost, therefore subtract employee contributions from pension costs.  As of 11/30/2022, I have changed my mind. All rev==51 pension contributions should be excluded from analysis BUT pensions as a whole are discussed in the 'Pension Discussion' section earlier in the document._
+
+
 
 
 ## Debt Service Discussion
@@ -561,7 +703,7 @@ ggplot()+
     'Tollway Expenditures' = 'orange',
     'Tollway Revenue' = 'light green')) +
   labs(title="Tollway bond procreeds, debt service, revenue, and expenditures.", 
-       caption = "Intuitively, Tollway revenue + bond proceeds should be roughly equalto tollway expenditures + debt service.", 
+       caption = "Intuitively, Tollway revenue + bond proceeds should be roughly equal to tollway expenditures + debt service.", 
        y = "Dollars")
 ```
 
@@ -569,7 +711,7 @@ Filtering for interest on short term borrowing and GO bonds (8813_ _ _ _) and GO
 - object == 8813 is for interest but obj_seq_type is used just to be more specific below.    
 
 
-Looking only at general obligation principal payemnts and interest payments:
+Looking only at general obligation principal payments and interest payments:
 
 ```{r}
 # GO bond principal and GO bond interest
@@ -587,7 +729,8 @@ GObond_debt %>% select(principal, interest, ratio) %>%
 
 GObond_debt %>% ggplot() + 
   geom_line(aes(x=fy, y=principal, color = "Principal"))+ 
-  geom_line(aes(x=fy, y=interest, color = "Interest"))
+  geom_line(aes(x=fy, y=interest, color = "Interest")) + 
+  labs(title = "General Obligation principal and interest payments")
 ```
 
 Looking only at short term borrowing principal and interest payments:
@@ -614,7 +757,8 @@ short_debt %>% ggplot() +
 
 When including short term borrowing and normal debt service, the debt ratio seems more normal and the total interest and principal payments over the years are smoothed out. 
 
-Excludes Illinois Tollway debt service. 
+
+Principal and interest amounts calculated exclude the Illinois Tollway debt service and debt for capital projects. Capital projects debt service is examined below:
 ```{r}
 capitalprojects <- exp_temp %>%filter(object == "8800")
 
@@ -635,22 +779,24 @@ all_debt %>% ggplot() +
   geom_line(aes(x=fy, y=principal/1000000, color = "Principal"))+ 
   geom_line(aes(x=fy, y=interest/1000000, color = "Interest"))+
   geom_line(aes(x=fy, y = CapitalProjects / 1000000, color = "Capital Projects"))+
-  labs(y = "Debt ($Millions)", title = "Short term borrowing and GO Bonds",
-       subtitle = "Principal and Interest payments", caption = "Capital projects does not include Illinois tollway debt service.")
+  labs(y = "Debt ($Millions)",
+       title = "Principal and Interest payments", subtitle = "Principal and interest from short term borrowing and GO Bonds debt service", caption = "Capital projects does not include Illinois tollway debt service.
+       Capital projects include interest and principal values as one value and cannot be sepearated.")
 
 
 ```
 
-Capital projects include the IL Civic Center and Build Illinois Bonds. Tollway principal and interest has been dropped from Debt Service but is counted in Tollway Expenditure Cost.
+Capital projects include the IL Civic Center and Build Illinois Bonds. Tollway principal and interest has been dropped from the State's Debt Service expenditure but is counted in the Illinois Tollway Expenditure cost.
 
 
-## State Employee Healthcare
+## State Employee Healthcare Discussion
 
-State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employer contributions are not considered a revenue source or an expenditure in our analysis.
+State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. Employee contributions are not considered a revenue source or an expenditure in our analysis.
 
+**Coding details**  
 In FY2013, the Local Government Health Insurance fund was transferred to the department of Central Management Services (agency changes from 478 to 416 in data.)
 
-Employer group insurance contributions for health insurance are excluded to avoid double counting the cost of healthcare. All employer group insurance contributions are coded as object = 1180. BUT the last two fiscal years were coded as 1900 instead of 1180 for lump sums instead of employer contributions      
+Employer group insurance contributions for health insurance are excluded to avoid double counting the cost of healthcare provision. All employer group insurance contributions are coded as object = 1180. BUT the last two fiscal years were coded as 1900 instead of 1180 for lump sums instead of employer contributions      
 - anything to do with pandemic money categorization?   
 
 
@@ -673,20 +819,20 @@ Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1
 
 ```{r healthcare-employer-contributions}
 health_ins_reserve <- exp_temp %>% filter(fund == "0907") %>%  group_by(fy) %>% 
-    summarize(fund_0907 = sum(expenditure,na.rm = TRUE)) 
+    summarize(fund_0907 = sum(expenditure)) 
 
 health_ins_reserve %>% 
   ggplot(aes(x=fy, y=fund_0907)) + geom_line()
 
 # object 1180 is inconsistently coded over time form the IOC 
 # object 1180 should be employer contributions to healthcare group insurance
-employer_contributions <- exp_temp %>% filter(object == "1180") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure, na.rm = TRUE)) 
+employer_contributions <- exp_temp %>% filter(object == "1180") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure)) 
 
 employer_contributions%>% 
   ggplot(aes(x=fy, y=object1180)) + geom_line()
 
 
-employer_contributions2 <- exp_temp %>% filter(object == "1180" & fund=="0001") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure,na.rm = TRUE)) 
+employer_contributions2 <- exp_temp %>% filter(object == "1180" & fund=="0001") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure)) 
 
 employer_contributions2 %>% 
   ggplot(aes(x=fy, y=object1180)) + geom_line()
@@ -704,8 +850,10 @@ group_ins2 <- exp_temp %>%
     fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 1, eehc) )%>%
   filter(eehc == 1) %>% 
     group_by(fy) %>% 
-    summarize(dropped_group_premiums = sum(expenditure, na.rm = TRUE))
+    summarize(dropped_group_premiums = sum(expenditure))
 
+
+group_ins2 %>% ggplot(aes(x=fy, y=dropped_group_premiums)) + geom_line()
 
 
 ```
@@ -715,11 +863,12 @@ If observation is a group insurance contribution, then the expenditure amount is
 
 ### Health Insurance Premiums from Employees
 
-Employee insurance premiums for healthcare are a revenue source for the state. In order to get the true cost of State Employee Healthcare, total employee insurance premiums should be subtracted from the healthcare expenditure total (exp_904 - premiums). Gather all employee premiums into `emp_premiums` and subtract it from the Expenditure table after aggregating and pivoting steps.
+Employee insurance premiums for healthcare are a revenue source for the state in the IOC data but are not included the Fiscal Futures analysis and fiscal gap calculations. 
+
+> Last month I said: In order to get the true cost of State Employee Healthcare, total employee insurance premiums should be subtracted from the healthcare expenditure total (exp_904 - premiums). Gather all employee premiums into `emp_premiums` and subtract it from the Expenditure table after aggregating and pivoting steps.
 
 0120 = ins prem-option life
 0120 = ins prem-optional life/univ
-
 0347 = optional health - HMO
 0348 = optional health - dental 
 0349 = optional health - univ/local SI
@@ -768,25 +917,25 @@ ggplot()+
  geom_line(data = emp_premium, aes(x=fy, y = employee_premiums_sum, color = 'Revenue from Employee Premiums')) +
     geom_line(data=health_ins_reserve, aes(x=fy, y=fund_0907, color='Cost of Provision')) +
     geom_line(data=employer_contributions, aes(x=fy, y=object1180, color='Employer Contributions-All')) +
-    geom_line(data=employer_contributions2, aes(x=fy, y=object1180, color='Employer Contributions-General Fund')) +
+ #   geom_line(data=employer_contributions2, aes(x=fy, y=object1180, color='Employer Contributions-General Fund')) +
 
   geom_line(data=group_ins2, aes(x=fy, y=dropped_group_premiums, color='Group Insurance2')) +
   #geom_line(data= healthcare_costs, aes(x=fy, y = cost_of_provision, color = 'Healthcare Costs'))+ 
   scale_color_manual(values = c(
     'Cost of Provision' = 'darkblue',
-    'Health Insurance Fund - All Revenue' = 'pink',
-    'Revenue from Employee Premiums' = 'yellow',
-    'Group Insurance2' = 'purple',
-    'Employer Contributions-All' = 'orange',
-        'Employer Contributions-General Fund' = 'black'
+    'Health Insurance Fund - All Revenue' = 'light green',
+    'Revenue from Employee Premiums' = 'dark green',
+    'Group Insurance2' = 'blue',
+    'Employer Contributions-All' = 'light blue'
+   #     'Employer Contributions-General Fund' = 'light blue'
 )) +
   labs(title="Healthcare costs and group insurance contributions", 
-       caption = "Healthcare costs and group insurance contributions.
-       Black line merges with purple line", 
-       y = "Dollars")
+       caption = "Healthcare costs and group insurance contributions", 
+       y = "Dollars", x = "")
 ```
 
-# Expenditure & Revenue
+# Expenditure & Revenue Categorization
+
 ## Modify Expenditure File
 
 ### Tax refunds 
@@ -836,10 +985,13 @@ exp_temp <- exp_temp %>% filter(refund == "not refund")
 
 ```
 
-`tax_refund` amounts are removed from expenditure totals and instead subtracted from revenue totals (since they were tax refunds).
+`tax_refund` amounts are removed from expenditure totals and subtracted from revenue totals (since they were tax refunds).
 
 
 ### Pension Expenditures
+
+
+_Earlier I argued that `pension_rev` should be subtracted from the state pension expenditures because employee contributions to pensions were a revenue source. If we wanted net pension cost, then we should subtract employee contributions from pension costs BUT as of 11/30/2022, I have changed my mind. All rev==51 pension contributions should be excluded from analysis BUT pensions as a whole are discussed in the 'Pension Discussion' section earlier in the document._
 
 
 __For yearly expenditure calculations, the state contributions to the pension funds (object = 4431) should be the expenditure included for pensions. If trying to look at the bigger fiscal health picture and include unfunded liabilities and in/out flows, then items like purchase of investments and large spikes that occurred from policy changes should be included. Again, State contributions TO the pension funds are the expenditures BUT an additional graph/discussion on the employer contributions, employee contributions (revenue source), and benefits paid out to employees (object = 4430) should be included and considered for additional context on Illinois' situation.__
