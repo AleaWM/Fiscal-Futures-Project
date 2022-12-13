@@ -349,13 +349,6 @@ pension_check %>% group_by(fy, object) %>%
   ggplot(aes(x=fy, y = expenditure, color = object)) + 
   geom_line() + 
   labs (title = "Expenditures by Object")
-
-pension_check %>% group_by(fy, type) %>% 
-  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
-  ggplot(aes(x=fy, y = expenditure, color = type)) + 
-  geom_line() + 
-  labs (title = "Expenditures by Type", caption = "Not confident with what Type represents. 
-        $10 billion POB issued in 2003-2004 and again in 2010-2011.")
   
 
 pension_check3 <- exp_temp %>% 
@@ -405,26 +398,19 @@ pension_picture %>% group_by(fy, pension) %>%
   caption = "")+
     theme(legend.position = "bottom", legend.title = element_blank())#+ guides(color = guide_legend(nrow=2))
 
-pension_check %>% group_by(fy, object) %>% 
-  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
-  ggplot(aes(x=fy, y = expenditure, color = object)) + 
-  geom_line() + 
-  labs (title = "Expenditures by Object")
 ```
-
-
-Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
 
 
 ### Pension Contributions
 
+Pension contributions from employees and employers are not included as revenue sources but are useful for understanding the money going into the funds and the money flowing out of the funds. Identifying and graphing employee and employer contributions, as well as benefits paid to retired employees and state contributions was important for checking the items that should and should not be included in the analysis. 
   
-- rev_type = 51 is for retirement contributions
-
 
 ```{r}
 
 # current year employee revenue source = 0573, contributions by employee == 572 (stops at 2011)
+# rev_type = 51 is for retirement contributions
+
 retirement_contributions <- rev_temp %>% 
   filter(rev_type == "51") %>% group_by(fy) %>% summarize(contributions = sum(receipts))
 
@@ -455,7 +441,9 @@ rev_temp %>%
   group_by(fy, source) %>% 
   summarise(sum = sum(receipts, na.rm = TRUE)) %>%
   ggplot() +
-  geom_line(aes(x=fy, y = sum, color=source)) + labs(title="Retirement Contributions by Source from Employee and Employers", caption = "Source 0573, 0572 is for employee contributions. 0577 is Contributions by employer.")
+  geom_line(aes(x=fy, y = sum, color=source)) + 
+  labs(title="Retirement Contributions by Source from Employee and Employers",
+       caption = "Source 0573, 0572 is for employee contributions. 0577 is Contributions by employer.")
 
 
 # contributions and benefits paid comparison
@@ -483,6 +471,8 @@ pension_picture %>% group_by(fy, pension) %>%
   Orange - employer contributions INTO the fund.")+
     theme(legend.position = "bottom", legend.title = element_blank())
 ```
+
+
 _Earlier I argued that `pension_rev` should be subtracted from the state pension expenditures. Employee contributions to pensions are a revenue source. We want net pension cost, therefore subtract employee contributions from pension costs.  As of 11/30/2022, I have changed my mind. All rev==51 pension contributions should be excluded from analysis BUT pensions as a whole are discussed in the 'Pension Discussion' section earlier in the document._
 
 
@@ -511,6 +501,7 @@ Debt Service expenditures include interest payment on both short-term and long-t
   - Tollway is obj_seq_type == 88000055, filter out fund == 0455 to remove tollway  
   - fund == 0455 is the IL State Toll Highway fund, items mostly for operations and maintenance  
 
+### Tollway Debt, Revenue, and Expenditures
 ```{r tollway}
 tollway <- exp_temp %>% filter(fund == "0455") #all tollway expenditures
 capitalproject_debtservice <- exp_temp %>%filter(object == "8800") # ALL Capital projects debt service
@@ -565,11 +556,14 @@ ggplot()+
        y = "Dollars")
 ```
 
-Filtering for interest on short term borrowing and GO bonds (8813_ _ _ _) and GO bond principal amounts (88130008).   
-- object == 8813 is for interest but obj_seq_type is used just to be more specific below.    
+### State principal and interest
+
+Filtering for interest on short term borrowing and GO bonds (88130008, 88130000, and 88130108) and GO bond principal amounts (88110008).   
+- object == 8813 is for all debt service interest but obj_seq_type is used to specify short term borrowing versus regular debt service.   
+- a Interest to Principal ratio is also calculated in the table below.
 
 
-Looking only at general obligation principal payemnts and interest payments:
+Looking only at general obligation principal payments and interest payments:
 
 ```{r}
 # GO bond principal and GO bond interest
@@ -585,9 +579,17 @@ GObond_debt <- exp_temp %>%
 GObond_debt %>% select(principal, interest, ratio) %>%
   mutate(across(principal:interest, ~format(., big.mark= ",", scientific = F)))
 
-GObond_debt %>% ggplot() + 
-  geom_line(aes(x=fy, y=principal, color = "Principal"))+ 
-  geom_line(aes(x=fy, y=interest, color = "Interest"))
+# GObond_debt %>% ggplot() + 
+#   geom_line(aes(x=fy, y=principal, color = "Principal" ))+ 
+#   geom_line(aes(x=fy, y=interest, color = "Interest")) +
+#   labs(title = "Debt Service", subtitle = "General Obligation Interest and Principal Payments")
+
+
+GObond_debt %>% ggplot() +   
+  geom_col(aes(x=fy, y=interest/1000000, fill = "Interest")) + 
+  geom_col(aes(x=fy, y=principal/1000000, fill = "Principal"))+ 
+  labs(title = "Debt Service", subtitle = "General Obligation Principal and Interest Payments")
+
 ```
 
 Looking only at short term borrowing principal and interest payments:
@@ -608,7 +610,7 @@ short_debt %>% select(principal, interest, ratio) %>%
 short_debt %>% ggplot() + 
   geom_col(aes(x=fy, y=principal/1000000, fill = "Principal"))+ 
   geom_col(aes(x=fy, y=interest/1000000, fill = "Interest")) + 
-  labs(title = "Short Term Borrowing: Principal and Interest Payments")
+  labs(title = "Debt Service", subtitle = "Short Term Borrowing Principal and Interest Payments")
 
 ```
 
@@ -639,6 +641,21 @@ all_debt %>% ggplot() +
        subtitle = "Principal and Interest payments", caption = "Capital projects does not include Illinois tollway debt service.")
 
 
+all_debt %>% ggplot() + 
+  geom_line(aes(x=fy, y=principal/1000000, color = "Principal"))+ 
+  geom_line(aes(x=fy, y=interest/1000000, color = "Interest"))+
+  geom_line(aes(x=fy, y = CapitalProjects / 1000000, color = "Capital Projects"))+
+  geom_line(data = tollwaydebt, aes( x=fy, y=sum/1000000, color = "Tollway Debt Service"))+
+  labs(y = "Debt ($Millions)", title = "Short term borrowing and GO Bonds",
+       subtitle = "Principal and Interest payments", caption = "Capital projects does not include Illinois tollway debt service.") 
+
+all_debt %>% ggplot() + 
+  geom_line(aes(x=fy, y=(principal+interest)/1000000, color = "Principal & Interest"))+ 
+  #geom_line(aes(x=fy, y=interest/1000000, color = "Interest"))+
+  geom_line(aes(x=fy, y = CapitalProjects / 1000000, color = "Capital Projects Debt Service"))+
+  geom_line(data = tollwaydebt, aes( x=fy, y=sum/1000000, color = "Tollway Debt Service"))+
+  labs(y = "Debt ($Millions)", title = "Illinois Debt Service Expenditures: Short term borrowing and GO Bonds",
+       subtitle = "Principal and Interest payments", caption = "Capital projects does not include Illinois tollway debt service.") 
 ```
 
 Capital projects include the IL Civic Center and Build Illinois Bonds. Tollway principal and interest has been dropped from Debt Service but is counted in Tollway Expenditure Cost.
@@ -668,7 +685,7 @@ Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1
 
 
 - eehc = 0 means it is NOT a state healthcare cost but it is an employer contribution of some type to some fund   
-- eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance
+- eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance and should be dropped from the analysis
 
 
 ```{r healthcare-employer-contributions}
@@ -680,16 +697,16 @@ health_ins_reserve %>%
 
 # object 1180 is inconsistently coded over time form the IOC 
 # object 1180 should be employer contributions to healthcare group insurance
-employer_contributions <- exp_temp %>% filter(object == "1180") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure, na.rm = TRUE)) 
+employer_contributions <- exp_temp %>% filter(object == "1180") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure)) 
 
 employer_contributions%>% 
   ggplot(aes(x=fy, y=object1180)) + geom_line()
 
 
-employer_contributions2 <- exp_temp %>% filter(object == "1180" & fund=="0001") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure,na.rm = TRUE)) 
+employer_contributions2 <- exp_temp %>% filter(object == "1180" & fund=="0001") %>% group_by(fy) %>% summarize(object1180fund1 = sum(expenditure)) 
 
 employer_contributions2 %>% 
-  ggplot(aes(x=fy, y=object1180)) + geom_line()
+  ggplot(aes(x=fy, y=object1180fund1)) + geom_line()
 
 
 # examine group insurance totals per year
@@ -768,7 +785,7 @@ ggplot()+
  geom_line(data = emp_premium, aes(x=fy, y = employee_premiums_sum, color = 'Revenue from Employee Premiums')) +
     geom_line(data=health_ins_reserve, aes(x=fy, y=fund_0907, color='Cost of Provision')) +
     geom_line(data=employer_contributions, aes(x=fy, y=object1180, color='Employer Contributions-All')) +
-    geom_line(data=employer_contributions2, aes(x=fy, y=object1180, color='Employer Contributions-General Fund')) +
+    geom_line(data=employer_contributions2, aes(x=fy, y=object1180fund1, color='Employer Contributions-General Fund')) +
 
   geom_line(data=group_ins2, aes(x=fy, y=dropped_group_premiums, color='Group Insurance2')) +
   #geom_line(data= healthcare_costs, aes(x=fy, y = cost_of_provision, color = 'Healthcare Costs'))+ 
@@ -787,6 +804,7 @@ ggplot()+
 ```
 
 # Expenditure & Revenue
+
 ## Modify Expenditure File
 
 ### Tax refunds 
@@ -1225,7 +1243,7 @@ medicaid_check %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrang
 ```
 
 
-## Add Other Fiscal Future group codes
+### Add Other Fiscal Future group codes
 
 ```{r group-codes}
 
@@ -1406,7 +1424,11 @@ rev_temp %>%
   labs(title = "Federal to State Transfers", 
        y = "Millions of Dollars", x = "") + 
   theme(legend.position = "bottom", legend.title = element_blank()  )
+
+
+
 ```
+
 
 ### Health Insurance Premiums from Employees
 
@@ -1467,13 +1489,7 @@ Employee premiums on the revenue side should have receipts coded as $0 or be dro
 
 ### Transfers in and Out: 
 
-**I don't have much faith in the transfers in and out steps- AWM**
-
-I am currently choosing to exclude the totals from this step. Overall, this decreases the total revenues in "All Other Revenues" by a few million dollars.
-
-- in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")   
-- See the methodology document for the list of what these sources/funds are. 
-
+Funds that hold and disperse local taxes or fees are dropped from the analysis. Then other excluded revenue types are also dropped ()
 
 ```{r step-3.8}
 rev_temp <- rev_temp %>% 
@@ -1495,6 +1511,7 @@ rev_temp <- rev_temp %>%
 # if source contains any of the codes in in_from_out, code them as 76 (all other rev).
 ```
 
+Drops Blank, Student Fees, Retirement contributions, proceeds/investments, bond issue proceeds, interagency receipts, cook IGT, Prior year refunds:
 
 ```{r droprevtypes}
 # revenue types to drop
@@ -1532,10 +1549,10 @@ rm(exp_1998_2022)
 
 ## Pivoting and Merging
 
-- State employer group insurance contributions should be dropped to avoid double counting costs.    
-- Subtract employee insurance premiums from State Employee Healthcare Expenditures (group == 904) - Employee Premiums = Actual state healthcare costs.  
+- State employer group insurance contributions should be dropped to avoid double counting both the state .    
+- ~~Subtract employee insurance premiums from State Employee Healthcare Expenditures (group == 904) - Employee Premiums = Actual state healthcare costs.~~ 
 
-  - $ff\_exp\$exp904 - emp\_premium\$employee\_premiums\_sum = state healthcare costs$
+  - ~~$ff\_exp\$exp904 - emp\_premium\$employee\_premiums\_sum = state healthcare costs$~~
 
 - Local Government Transfers (exp_970) should be on the expenditure side
 
@@ -1543,8 +1560,7 @@ rm(exp_1998_2022)
 
 ## Revenues
 
-I chose to drop rev_76 for Transfers in and Out because I do not understand why that step occurs in the previously used Stata code. If I keep rev_76 in and include it in rev_78 for All Other Revenues, then the difference between R and Stata code should be resolved.  
-  - after Stata code is edited to drop employee insurance premium revenue from all other revenues. Currently it keeps it in AND subtracts it from state healthcare expenditures.  
+Tax refunds must be subtracted from revenue sources:
 
 ```{r final-ffrev-table}
 ff_rev <- rev_temp %>% 
@@ -2067,7 +2083,7 @@ rev_long %>%
             size = 2.8) +
          geom_point(aes(color = Year), size=2)  +
   labs(title = "2021 to 2022 Change in Revenue", x = "Millions of Dollars" , y = "",  caption = "")  +
-   scale_color_brewer(palette = "paired", labels = c("FY 2021", "FY 2022"))+
+   scale_color_brewer(palette = "Dark2", labels = c("FY 2021", "FY 2022"))+
    theme_classic()+ 
     theme(
    legend.position = "bottom" ,
@@ -2091,7 +2107,7 @@ exp_long %>%
             size = 2.8) +
          geom_point(aes(color = Year), size=2)  +
   labs(title = "2021 to 2022 Change in Expenditures", x = "Millions of Dollars" , y = "",  caption = "")  +
-   scale_color_brewer(palette = "paired", labels = c("FY 2021", "FY 2022"))+
+   scale_color_brewer(palette = "Dark2", labels = c("FY 2021", "FY 2022"))+
    theme_classic()+ 
     theme(
     legend.position = "bottom" ,
