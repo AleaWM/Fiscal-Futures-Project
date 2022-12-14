@@ -424,7 +424,7 @@ In 2019 lawmakers offered a pension buyout plan where members could opt-out of t
 
 **Data coding details**    
 
-- State pension contributions are largely captured with object=4431. **(These are the State expemditures included in analysis)**     
+- State pension contributions are largely captured with object=4431. **(These are the State expenditures included in analysis)**     
   - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
   - Object 4431 does not capture recent pension stabilization fund which is fund = 0319, object = 1900 and has $300 million investment in FY2022.  
 
@@ -433,7 +433,9 @@ In 2019 lawmakers offered a pension buyout plan where members could opt-out of t
 
 - IOC objects 1160-1165 are for all retirement expenditures for employers. These are not included in the analysis. 
 
-- Some expenditures with object=4430 (benefits paid to retirees) were paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. Code logic was unclear. We are no longer doing this as of FY2021.   
+- Some expenditures with object=4430 (benefits paid to retirees) were paid for with Pension obligation bond funds (fund == 0825). 
+
+- In past years, some POB funded expenditures were moved to revenue side. Code logic was unclear. We are no longer doing this as of FY2021.   
 
 - Other types of pension expenditures to consider when looking at pension funds: Pension obligation acceleration bond, state pension obligation bond reimbursements, pension pickup, accelerated pension buy-out (bond financed funds)   
 
@@ -530,7 +532,7 @@ pension_picture <- exp_temp %>%
   #object == "4430" & fund == "0825" ~ "Pension Buyout/Benefits Paid Early; INCLUDED",
     (object=="4430") ~ "Benefits Paid to Employees", # pensions, annuities, benefits
     (object=="4431") ~ "State Pension Contributions", # 4431 = state payments into pension fund
-        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "Employer Contributions",
+        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "IOC Retirement Expense Objectw",
     # objects 1159 to 1166 are all considered Retirement by Comptroller 
     
             TRUE ~ "0")) %>%  # All other observations coded as 0 for non-pension items
@@ -552,17 +554,17 @@ pension_picture %>% group_by(fy, pension) %>%
   geom_line() + 
 
   labs (title = "Pension Fund Payments In and Retirement Benefits Out", 
-  caption = "")+
+  caption = "All pension expenditure types are included in IOC Expenditure data")+
     theme(legend.position = "bottom", legend.title = element_blank())#+ guides(color = guide_legend(nrow=2))
 
 ```
 
 Employer contributions and state pension contributions are an example of an expenditure being double counted if both are included. 
 
-### Pension Contributions
+### Pension Contributions - Revenue Data
 
   
-rev_type = 51 is for retirement/pension contributions from both employers and employees. These contributions from employers and employees are not considered a revenue source from the state and are excluded from the Fiscal Futures analysis. However, it is still important to understand the money going in and out of then pension funds even if it is not included as a yearly expenditure or revenue. Retirement contribution revenue is graphed below.
+rev_type = 51 is for retirement/pension contributions from both employers and employees. These contributions from employers and employees are excluded from the Fiscal Futures model. However, it is still important to understand the money going in and out of then pension funds even if it is not included as a yearly expenditure or revenue. Retirement contribution revenue is graphed below.
 ```{r}
 
 # current year employee revenue source = 0573, contributions by employee == 572 (stops at 2011)
@@ -589,14 +591,8 @@ rev_temp %>%
   group_by(fy, source) %>% 
   summarise(sum = sum(receipts, na.rm = TRUE)) %>%
   ggplot() +
-  geom_line(aes(x=fy, y = sum, color=source)) + labs(title="All Retirement Contributions, ALL rev_source == 51")
-
-rev_temp %>% 
-  filter(rev_type == "51" & source == "0573" | source == "0572" | source == "0577") %>%  
-  group_by(fy, source) %>% 
-  summarise(sum = sum(receipts, na.rm = TRUE)) %>%
-  ggplot() +
-  geom_line(aes(x=fy, y = sum, color=source)) + labs(title="Retirement Contributions by Source from Employee and Employers", caption = "Source 0573, 0572 is for employee contributions. 0577 is Contributions by employer.")
+  geom_line(aes(x=fy, y = sum, color=source)) + labs(title="All Retirement Contributions, ALL rev_source == 51", 
+       caption = "Source 0573, 0572 is for employee contributions. 0577 is Contributions by employer.")
 
 
 # contributions and benefits paid comparison
@@ -608,10 +604,10 @@ ggplot()+
 
   geom_line(data= benefits_paid, aes(x=fy, y = expenditure), color = "dark blue")+ 
   labs(title="Pension fund inflows and outflows", 
-       caption = "Blue: object = 4430 for benefits paid OUT of funds, 
+       caption = "Blue: object = 4430 for benefits paid out of funds, 
       red:  object = 4431 for state contributions into pension fund, 
-     green:rev_type = 51 for employee contributions INTO the fund,
-     orange: employer contributions INTO the fund.", y = "Dollars")
+     green: employee contributions into the fund,
+     orange: employer contributions into the fund.", y = "Dollars")
 
 pension_picture %>% group_by(fy, pension) %>% 
   summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
@@ -793,20 +789,25 @@ Capital projects include the IL Civic Center and Build Illinois Bonds. Tollway p
 
 State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. Employee contributions are not considered a revenue source or an expenditure in our analysis.
 
+Funding for the State Employees Group Insurance plan originates from two funds. The Health Insurance Reserve Fund (HIRF) and the Group Insurance Premium Fund (GIPF). Contributions and payment for Health coverage benefits are deposited INTO HIRF and contributions for life insurance are deposited into the GIPF.
+
+HIRF is the fund mainly used to administer the group insurance program. Funding for HIRF comes from several different revenue sources, the General Revenue Fund (GRF), Road Fund, reimbursements, university funds, and misc funds. [CGFA Report](https://cgfa.ilga.gov/Upload/fy2011stateemployees'groupinsurance.pdf)
+
 **Coding details**  
 In FY2013, the Local Government Health Insurance fund was transferred to the department of Central Management Services (agency changes from 478 to 416 in data.)
 
 Employer group insurance contributions for health insurance are excluded to avoid double counting the cost of healthcare provision. All employer group insurance contributions are coded as object = 1180. BUT the last two fiscal years were coded as 1900 instead of 1180 for lump sums instead of employer contributions      
 - anything to do with pandemic money categorization?   
 
+Fund = 0907 = health insurance reserve, in_ff = 1 
 
+Fund = 0457 is "Group insurance premium", in_ff = 1 
 
-Fund = 0457 is "Group insurance premium", in_ff = 1  
-Fund = 0193 is "Local govt health insurance reserve", in=ff = 0  
+Fund = 0193 is "Local govt health insurance reserve", in=ff = 0    
 fund = 0477 is "Community College Health Insurance", in=ff = 0.     
 - had large amount in early years  
-Fund = 0907 = health insurance reserve, in_ff = 1  
-Fund = 9939 is "group self-insurers' insolv", in_ff = 1  
+ 
+Fund = 9939 is "group self-insurers' insolv", in_ff = 1   
 Fund = 0940 is Self-Insurers security, in_ff = 0  
 Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1   
 
@@ -822,23 +823,23 @@ health_ins_reserve <- exp_temp %>% filter(fund == "0907") %>%  group_by(fy) %>%
     summarize(fund_0907 = sum(expenditure)) 
 
 health_ins_reserve %>% 
-  ggplot(aes(x=fy, y=fund_0907)) + geom_line()
+  ggplot(aes(x=fy, y=fund_0907)) + geom_line() + labs(title="Health Insurance Reserve", subtitle = "Sum of expenditures from fund 907")
 
 # object 1180 is inconsistently coded over time form the IOC 
 # object 1180 should be employer contributions to healthcare group insurance
 employer_contributions <- exp_temp %>% filter(object == "1180") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure)) 
 
 employer_contributions%>% 
-  ggplot(aes(x=fy, y=object1180)) + geom_line()
+  ggplot(aes(x=fy, y=object1180)) + geom_line() + labs(title="Employer Contributions to Healthcare Group Insurance, IOC Object 1180")
 
 
 employer_contributions2 <- exp_temp %>% filter(object == "1180" & fund=="0001") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure)) 
 
 employer_contributions2 %>% 
-  ggplot(aes(x=fy, y=object1180)) + geom_line()
+  ggplot(aes(x=fy, y=object1180)) + geom_line() + labs(title="Employer Contributions to Healthcare Group Insurance", subtitle = "IOC Object 1180 from Fund 001")
 
 
-# examine group insurance totals per year
+# examine combined group insurance totals per year
 group_ins2 <- exp_temp %>% 
   mutate(eehc = ifelse(
     # group insurance contributions for 1998-2005 and 2013-present
@@ -850,10 +851,10 @@ group_ins2 <- exp_temp %>%
     fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 1, eehc) )%>%
   filter(eehc == 1) %>% 
     group_by(fy) %>% 
-    summarize(dropped_group_premiums = sum(expenditure))
+    summarize(dropped_group_premiums = sum(expenditure, na.rm=TRUE))
 
 
-group_ins2 %>% ggplot(aes(x=fy, y=dropped_group_premiums)) + geom_line()
+group_ins2 %>% ggplot(aes(x=fy, y=dropped_group_premiums)) + geom_line() + labs(title="Employer Healthcare Group Insurance Contributions", subtitle= " - Dropped from analysis to avoid double counting healthcare expenditures", caption = "Objects 1180 and 1900 from fund 0001. See code for additional coding details.")
 
 
 ```
@@ -861,22 +862,21 @@ group_ins2 %>% ggplot(aes(x=fy, y=dropped_group_premiums)) + geom_line()
 
 If observation is a group insurance contribution, then the expenditure amount is set to $0 (essentially dropped from analysis).
 
-### Health Insurance Premiums from Employees
+### Health Insurance - Revenue Side
 
-Employee insurance premiums for healthcare are a revenue source for the state in the IOC data but are not included the Fiscal Futures analysis and fiscal gap calculations. 
+Employee insurance premiums for healthcare are a revenue source for the state in the IOC data but are NOT included  in the Fiscal Futures analysis and fiscal gap calculations. 
 
-> Last month I said: In order to get the true cost of State Employee Healthcare, total employee insurance premiums should be subtracted from the healthcare expenditure total (exp_904 - premiums). Gather all employee premiums into `emp_premiums` and subtract it from the Expenditure table after aggregating and pivoting steps.
-
-0120 = ins prem-option life
-0120 = ins prem-optional life/univ
-0347 = optional health - HMO
-0348 = optional health - dental 
-0349 = optional health - univ/local SI
-0350 = optional health - univ/local
-0351 = optional health - retirement
-0352 = optional health - retirement SI
-0353 = optional health - retire/dental
-0354 = optional health - retirement hmo
+Source #'s:    
+0120 = ins prem-option life  
+0120 = ins prem-optional life/univ  
+0347 = optional health - HMO  
+0348 = optional health - dental   
+0349 = optional health - univ/local SI  
+0350 = optional health - univ/local  
+0351 = optional health - retirement  
+0352 = optional health - retirement SI  
+0353 = optional health - retire/dental  
+0354 = optional health - retirement hmo   
 
 2199-2209 = various HMOs, dental, health plans from Health Insurance Reserve (fund)
 
@@ -889,7 +889,7 @@ health_insurance_fund_rev<- rev_temp %>%
 
 health_insurance_fund_rev %>% 
   ggplot(aes(x=fy, y = health_ins_rev)) + 
-  geom_line() + labs( title = "Health insurance fund - All revenue")
+  geom_line() + labs( title = "Health insurance fund - All revenue, Fund 0907")
 
 
 
@@ -916,22 +916,29 @@ ggplot()+
       geom_line(data=health_insurance_fund_rev, aes(x=fy, y=health_ins_rev, color='Health Insurance Fund - All Revenue')) +
  geom_line(data = emp_premium, aes(x=fy, y = employee_premiums_sum, color = 'Revenue from Employee Premiums')) +
     geom_line(data=health_ins_reserve, aes(x=fy, y=fund_0907, color='Cost of Provision')) +
-    geom_line(data=employer_contributions, aes(x=fy, y=object1180, color='Employer Contributions-All')) +
+    geom_line(data=employer_contributions, aes(x=fy, y=object1180, color='Group Insurance-Object1180')) +
  #   geom_line(data=employer_contributions2, aes(x=fy, y=object1180, color='Employer Contributions-General Fund')) +
 
-  geom_line(data=group_ins2, aes(x=fy, y=dropped_group_premiums, color='Group Insurance2')) +
+  geom_line(data=group_ins2, aes(x=fy, y=dropped_group_premiums, color='Group Insurance - 1180 & 1900')) +
   #geom_line(data= healthcare_costs, aes(x=fy, y = cost_of_provision, color = 'Healthcare Costs'))+ 
   scale_color_manual(values = c(
     'Cost of Provision' = 'darkblue',
     'Health Insurance Fund - All Revenue' = 'light green',
     'Revenue from Employee Premiums' = 'dark green',
-    'Group Insurance2' = 'blue',
-    'Employer Contributions-All' = 'light blue'
+    'Group Insurance - 1180 & 1900' = 'blue',
+    'Group Insurance-Object1180' = 'light blue'
    #     'Employer Contributions-General Fund' = 'light blue'
 )) +
   labs(title="Healthcare costs and group insurance contributions", 
        caption = "Healthcare costs and group insurance contributions", 
        y = "Dollars", x = "")
+```
+```{r}
+exp_temp <- exp_temp %>% 
+  mutate(eehc = ifelse(object == "1180", 1, 0)) %>%
+  mutate(eehc = ifelse((eehc == 1 & in_ff =="0"), 2, eehc))
+#%>%mutate(in_ff = ifelse(eehc == 2, "1", in_ff) ) %>% filter(eehc ==2 )
+table(exp_temp$eehc)
 ```
 
 # Expenditure & Revenue Categorization
@@ -1009,7 +1016,7 @@ State payments to the following pension systems:
 - State pension contributions are largely captured with object=4431. **(State payments into pension fund)**    
   - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
   - does not capture recent pension stabilization payments   
-- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. We are no longer doing this as of FY2021.    
+- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side in the Stata code. We are no longer doing this as of FY2021.    
 
 Modify exp_temp and move all state pension contributions to their own group (901):
 ```{r pensions}
@@ -1026,13 +1033,14 @@ exp_temp <-  exp_temp %>%
      (fy==2010 | fy==2011) & 
      (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement OUT of fund
   # state borrowed money from pension funds to pay for core services during 2010 and 2011. 
-  # used to fill budget gap and push problems to the future.
+  # used to fill budget gap and push problems to the future. 
  
 
- fund == "0319" ~ 4, #pension stabilization fund, included
+ fund == "0319" ~ 4, # pension stabilization fund
                                         TRUE ~ 0) )
 
 table(exp_temp$pension) 
+
 
 
 exp_temp %>% filter(pension != 0) %>%
@@ -1042,9 +1050,10 @@ exp_temp %>% filter(pension != 0) %>%
   ggplot(aes(x=fy, y = expenditure, group=pension)) + 
   geom_line(aes(color = pension)) + 
 
-  labs (title = "State contributions INTO pension funds", 
-  caption = "Shows items from objects 4431 as employer pension expenditures (State contributions INTO the funds.")+
+  labs (title = "Pension expenditures", 
+  caption = "1 = State contributions INTO pension funds")+
     theme(legend.position = "bottom")
+
 
 ```
 
@@ -1077,7 +1086,15 @@ exp_temp %>%
   ggplot(aes(x=fy, y=expenditure, color = pension)) +
   geom_line() + 
   labs (title = "Pension Expenditures", 
-  caption = "Object = 4431 includes payments INTO pension Fund.")
+  caption = "")
+
+exp_temp %>% 
+ filter(pension > 0) %>%  
+  group_by(fy) %>% 
+  summarize(expenditure = sum(expenditure, na.rm=TRUE)) %>%
+  ggplot(aes(x=fy, y=expenditure)) +
+  geom_line() + 
+  labs (title = "Pension Expenditures")
 ```
 
 
@@ -1086,7 +1103,7 @@ exp_temp %>%
 
 - object == 1993 is for interfund cash transfers  
 - agency == 799 is for statutory transfers  
-- object == 1298 is for purchase of investments and is not spending EXCEPT for pensions in 2010 and 2011 (and were recoded already to object == "4431"). Over 168,000 observations remain.  
+- object == 1298 is for purchase of investments and is not spending EXCEPT for costs in 2010 and 2011 (and were recoded already to object == "4431"). Over 168,000 observations remain.  
 
 ```{r drop-transfers}
 
@@ -1096,8 +1113,7 @@ transfers_drop <- exp_temp %>% filter(
            object == "1298") # purchase of investments
 
 exp_temp <- anti_join(exp_temp, transfers_drop)
-
-#transfers_drop %>% group_by(fy) %>% summarize(expenditure = sum(expenditure)) %>% ggplot(aes(x=fy, y=expenditure)) + geom_line() + labs(title = "Dropped Transfers", caption = "Includes statutory transfers, interfund cash transfers, and purchase of investments")
+exp_temp
 ```
 
 
@@ -1123,70 +1139,13 @@ Fund = 0940 is Self-Insurers security, in_ff = 0
 Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1   
 
 
-
-
 - eehc = 0 means it is NOT a state healthcare cost but it is an employer contribution of some type to some fund   
 - eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance
 
 
-```{r }
-health_ins_reserve <- exp_temp %>% filter(fund == "0907") %>%  group_by(fy) %>% 
-    summarize(fund_0907 = sum(expenditure,na.rm = TRUE)) 
+Of the many different ways I have coded the healthcare costs, most do not have expenditures during 2010, 2011, 2016, 2017.
 
-health_ins_reserve %>% 
-  ggplot(aes(x=fy, y=fund_0907)) + geom_line()
-
-# object 1180 is inconsistently coded over time form the IOC 
-# object 1180 should be employer contributions to healthcare group insurance
-employer_contributions <- exp_temp %>% filter(object == "1180") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure, na.rm = TRUE)) 
-
-employer_contributions%>% 
-  ggplot(aes(x=fy, y=object1180)) + geom_line()
-
-
-employer_contributions2 <- exp_temp %>% filter(object == "1180" & fund=="0001") %>% group_by(fy) %>% summarize(object1180 = sum(expenditure,na.rm = TRUE)) 
-
-employer_contributions2 %>% 
-  ggplot(aes(x=fy, y=object1180)) + geom_line()
-
-
-# examine group insurance totals per year
-group_ins2 <- exp_temp %>% 
-  mutate(eehc = ifelse(
-    # group insurance contributions for 1998-2005 and 2013-present
-    # CMS took over health insurance in 2013
-   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 1, 0) )%>% 
-  mutate(eehc = ifelse(
-    # group insurance contributions for 2006-2012
-    # health insurance was in healthcare and family services, agency 478 for a few years
-    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 1, eehc) )%>%
-  filter(eehc == 1) %>% 
-    group_by(fy) %>% 
-    summarize(dropped_group_premiums = sum(expenditure, na.rm = TRUE))
-
-
-# contributions and benefits paid comparison
-ggplot()+
-  #  geom_line(data=group_ins, aes(x=fy, y=object1180, color='Group Insurance1')) +
-    geom_line(data=health_ins_reserve, aes(x=fy, y=fund_0907, color='Cost of Provision')) +
-    geom_line(data=employer_contributions, aes(x=fy, y=object1180, color='Employer Contributions-All')) +
-    geom_line(data=employer_contributions2, aes(x=fy, y=object1180, color='Employer Contributions-General Fund')) +
-
-  geom_line(data=group_ins2, aes(x=fy, y=dropped_group_premiums, color='Group Insurance2')) +
-  #geom_line(data= healthcare_costs, aes(x=fy, y = cost_of_provision, color = 'Healthcare Costs'))+ 
-  scale_color_manual(values = c(
-    'Cost of Provision' = 'darkblue',
-    'Group Insurance2' = 'purple',
-    'Employer Contributions-All' = 'orange',
-        'Employer Contributions-General Fund' = 'black'
-)) +
-  labs(title="Healthcare costs and group insurance contributions", 
-       caption = "Healthcare costs and group insurance contributions", 
-       y = "Dollars")
-```
-
-
-```{r }
+```{r include=FALSE}
 exp_temp_check <- exp_temp %>% 
   mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
       fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management Bureau of benefits using health insurance reserve 
@@ -1212,6 +1171,11 @@ If observation is a group insurance contribution, then the expenditure amount is
 
 ```{r eehc1}
 #if observation is a group insurance contribution, then the expenditure amount is set to $0 (essentially dropped from analysis)
+
+# pretend eehc is named group_insurance_contribution or something like that
+# eehc coded as zero implies that it is group insurance
+# if eehc=0, then expenditures are coded as zero for group insurance to avoid double counting costs
+
 exp_temp <- exp_temp %>% 
   mutate(eehc = ifelse(
     # group insurance contributions for 1998-2005 and 2013-present
@@ -1232,25 +1196,28 @@ exp_temp <- exp_temp %>%
       TRUE ~ as.character(agency))) %>%
   mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
          in_ff = ifelse( agency == "904", 1, in_ff),
-         group = ifelse(agency == "904", "904", as.character(agency)))  # creates group variable
+         group = ifelse(agency == "904", "904", as.character(agency)))  
+# creates group variable
 
 # Default group = agency number
 
 healthcare_costs <- exp_temp %>% filter(group == "904")
 
-healthcare_costs %>% group_by(fy,obj_seq_type) %>% 
+healthcare_costs
+
+exp_temp %>% filter(group == "904") %>% group_by(fy) %>% 
   summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)) %>% 
-  ggplot() +geom_line(aes(x=fy, y=healthcare_cost, color = obj_seq_type))
+  ggplot() +geom_line(aes(x=fy, y=healthcare_cost)) + labs(title="State Employee Healthcare Costs - Included in Fiscal Futures Model", caption = "Fund 0907 for agencies responsible for health insurance reserve (DHFS & CMS)")
 
 
-exp_temp <- anti_join(exp_temp, healthcare_costs) %>% mutate(expenditure = ifelse(object == "1180", 0, expenditure))
+#exp_temp <- anti_join(exp_temp, healthcare_costs) %>% mutate(expenditure = ifelse(object == "1180", 0, expenditure))
 
-healthcare_costs_yearly <- healthcare_costs %>% group_by(fy, group) %>% summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)/1000000) %>% select(-group)
+#healthcare_costs_yearly <- healthcare_costs %>% group_by(fy, group) %>% summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)/1000000) %>% select(-group)
 
 
 ```
 
-> This code chunk above for dealing with group insurance means that healthcare costs need to be added to expenditures after other group names are assigned. Then employee contributions/insurance premiums from the revenue side need to be subtracted from the total cost of employee healthcare for the net cost.
+~~This code chunk above for dealing with group insurance means that healthcare costs need to be added to expenditures after other group names are assigned. Then employee contributions/insurance premiums from the revenue side need to be subtracted from the total cost of employee healthcare for the net cost.~~ Do not do this. 
 
 
 ### Local Transfers
@@ -1480,7 +1447,6 @@ All expenditures recoded but not aggregated: Allows for inspection of individual
 
 Note that these are the raw figures BEFORE we take the additional steps:   
 
-- Subtract employee insurance premiums from State Employee Healthcare expenditures  
 - Subtract tax refunds from tax revenues by revenue type.  
 
 ## Modify  Revenue data
@@ -1607,8 +1573,9 @@ exp_temp %>% filter(fy == 2021 & (fund_name == "STATE CURE" | fund_name == "LOCA
 
 #collect optional insurance premiums to fund 0907 for use in eehc expenditure  
 rev_temp <- rev_temp %>% 
-  mutate(employee_premiums = ifelse(
-    fund=="0907" & (source=="0120"| source=="0121"| (source>"0345" & source<"0357")|(source>"2199" & source<"2209")), 1, 0),
+  mutate(
+    #variable not used in aggregates, but could be interesting for other purposes
+    employee_premiums = ifelse(fund=="0907" & (source=="0120"| source=="0121"| (source>"0345" & source<"0357")|(source>"2199" & source<"2209")), 1, 0),
     
     # adds more rev_type codes
     rev_type = case_when(
@@ -1635,7 +1602,8 @@ emp_premium_long <- rev_temp %>%  filter(employee_premiums == 1)
 
 
 # drops employee premiums from revenue
-rev_temp <- rev_temp %>% filter(employee_premiums != 1)
+# rev_temp <- rev_temp %>% filter(employee_premiums != 1)
+# should be dropped in next step since rev_type = 51
 
 
 ```
@@ -1802,8 +1770,6 @@ aggregate_rev_labels
 
 
 ## Expenditures
-
-Create state employee healthcare costs that reflects the health costs minus the optional insurance premiums that came in ($904\_new = 904 - med\_option\_amt\_recent$).
 
 Create exp_970 for all local government transfers (exp_971 + exp_972  + exp_975 + exp_976).
 
