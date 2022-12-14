@@ -595,19 +595,19 @@ rev_temp %>%
        caption = "Source 0573, 0572 is for employee contributions. 0577 is Contributions by employer.")
 
 
-# contributions and benefits paid comparison
-ggplot()+
-  geom_line(data=employee_contributions, aes(x=fy, y=contributions), color="green") +
-    geom_line(data=employer_contributions, aes(x=fy, y=contributions), color="orange") +
-
-  geom_line(data= state_contrib, aes(x=fy, y = expenditure), color = "red")+ 
-
-  geom_line(data= benefits_paid, aes(x=fy, y = expenditure), color = "dark blue")+ 
-  labs(title="Pension fund inflows and outflows", 
-       caption = "Blue: object = 4430 for benefits paid out of funds, 
-      red:  object = 4431 for state contributions into pension fund, 
-     green: employee contributions into the fund,
-     orange: employer contributions into the fund.", y = "Dollars")
+# # contributions and benefits paid comparison
+# ggplot()+
+#   geom_line(data=employee_contributions, aes(x=fy, y=contributions), color=" light green") +
+#     geom_line(data=employer_contributions, aes(x=fy, y=contributions), color="orange") +
+# 
+#   geom_line(data= state_contrib, aes(x=fy, y = expenditure), color = "red")+ 
+# 
+#   geom_line(data= benefits_paid, aes(x=fy, y = expenditure), color = "dark blue")+ 
+#   labs(title="Pension fund inflows and outflows", 
+#        caption = "Blue: object = 4430 for benefits paid out of funds, 
+#       red:  object = 4431 for state contributions into pension fund, 
+#     neon  green: employee contributions into the fund,
+#      orange: employer contributions into the fund.", y = "Dollars")
 
 pension_picture %>% group_by(fy, pension) %>% 
   summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
@@ -648,6 +648,8 @@ Debt Service expenditures include interest payment on both short-term and long-t
 - Include: Build IL Bonds, capital projects principal AND interest  
   - Tollway is obj_seq_type == 88000055, filter out fund == 0455 to remove tollway  
   - fund == 0455 is the IL State Toll Highway fund, items mostly for operations and maintenance  
+
+#### Tollway Debt, Revenue, and Expenditures
 
 ```{r tollway}
 tollway <- exp_temp %>% filter(fund == "0455") #all tollway expenditures
@@ -699,13 +701,16 @@ ggplot()+
     'Tollway Expenditures' = 'orange',
     'Tollway Revenue' = 'light green')) +
   labs(title="Tollway bond procreeds, debt service, revenue, and expenditures.", 
-       caption = "Intuitively, Tollway revenue + bond proceeds should be roughly equal to tollway expenditures + debt service.", 
+       caption = "Tollway revenue + bond proceeds should be roughly equal to tollway expenditures + debt service.", 
        y = "Dollars")
 ```
 
-Filtering for interest on short term borrowing and GO bonds (8813_ _ _ _) and GO bond principal amounts (88130008).   
-- object == 8813 is for interest but obj_seq_type is used just to be more specific below.    
+#### State Principal and Interest
 
+
+Filtering for interest on short term borrowing and GO bonds (88130008, 88130000, and 88130108) and GO bond principal amounts (88110008).  
+- object == 8813 is for all debt service interest but obj_seq_type is used to specify short term borrowing versus regular debt service.   
+- a Interest to Principal ratio is also calculated in the table below.  
 
 Looking only at general obligation principal payments and interest payments:
 
@@ -723,10 +728,15 @@ GObond_debt <- exp_temp %>%
 GObond_debt %>% select(principal, interest, ratio) %>%
   mutate(across(principal:interest, ~format(., big.mark= ",", scientific = F)))
 
-GObond_debt %>% ggplot() + 
-  geom_line(aes(x=fy, y=principal, color = "Principal"))+ 
-  geom_line(aes(x=fy, y=interest, color = "Interest")) + 
-  labs(title = "General Obligation principal and interest payments")
+# GObond_debt %>% ggplot() + 
+#   geom_line(aes(x=fy, y=principal, color = "Principal"))+ 
+#   geom_line(aes(x=fy, y=interest, color = "Interest")) + 
+#   labs(title = "General Obligation principal and interest payments")
+
+GObond_debt %>% ggplot() +   
+  geom_col(aes(x=fy, y=interest/1000000, fill = "Interest")) + 
+  geom_col(aes(x=fy, y=principal/1000000, fill = "Principal"))+ 
+  labs(title = "Debt Service", subtitle = "General Obligation Principal and Interest Payments")
 ```
 
 Looking only at short term borrowing principal and interest payments:
@@ -747,7 +757,7 @@ short_debt %>% select(principal, interest, ratio) %>%
 short_debt %>% ggplot() + 
   geom_col(aes(x=fy, y=principal/1000000, fill = "Principal"))+ 
   geom_col(aes(x=fy, y=interest/1000000, fill = "Interest")) + 
-  labs(title = "Short Term Borrowing: Principal and Interest Payments")
+  labs(title = "Debt Service", subtitle = "Short Term Borrowing: Principal and Interest Payments")
 
 ```
 
@@ -779,7 +789,21 @@ all_debt %>% ggplot() +
        title = "Principal and Interest payments", subtitle = "Principal and interest from short term borrowing and GO Bonds debt service", caption = "Capital projects does not include Illinois tollway debt service.
        Capital projects include interest and principal values as one value and cannot be sepearated.")
 
+all_debt %>% ggplot() + 
+  geom_line(aes(x=fy, y=principal/1000000, color = "Principal"))+ 
+  geom_line(aes(x=fy, y=interest/1000000, color = "Interest"))+
+  geom_line(aes(x=fy, y = CapitalProjects / 1000000, color = "Capital Projects"))+
+  geom_line(data = tollwaydebt, aes( x=fy, y=sum/1000000, color = "Tollway Debt Service"))+
+  labs(y = "Debt ($Millions)", title = "Short term borrowing and GO Bonds",
+       subtitle = "Principal and Interest payments", caption = "Capital projects does not include Illinois tollway debt service.") 
 
+all_debt %>% ggplot() + 
+  geom_line(aes(x=fy, y=(principal+interest)/1000000, color = "Principal & Interest"))+ 
+  #geom_line(aes(x=fy, y=interest/1000000, color = "Interest"))+
+  geom_line(aes(x=fy, y = CapitalProjects / 1000000, color = "Capital Projects Debt Service"))+
+  geom_line(data = tollwaydebt, aes( x=fy, y=sum/1000000, color = "Tollway Debt Service"))+
+  labs(y = "Debt ($Millions)", title = "Illinois Debt Service Expenditures: Short term borrowing and GO Bonds",
+       subtitle = "Principal and Interest payments", caption = "Capital projects does not include Illinois tollway debt service.") 
 ```
 
 Capital projects include the IL Civic Center and Build Illinois Bonds. Tollway principal and interest has been dropped from the State's Debt Service expenditure but is counted in the Illinois Tollway Expenditure cost.
@@ -1532,9 +1556,9 @@ rev_temp %>%
 Looking at Federal Revenue:
 
 ```{r}
-rev_temp %>% filter(rev_type == "57" & fy == 2021) %>% group_by(source_name_AWM) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
+rev_temp %>% filter(rev_type == "57" & fy == 2022) %>% group_by(source_name_AWM) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
 
-rev_temp %>% filter(rev_type == "57" & fy == 2021 & source_name_AWM == "FEDERAL STIMULUS PACKAGE") %>% group_by(fund_name) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
+rev_temp %>% filter(rev_type == "57" & fy == 2022 & source_name_AWM == "FEDERAL STIMULUS PACKAGE") %>% group_by(fund_name) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
 
 exp_temp %>% filter(fy == 2022 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE")) %>% group_by(org_name, agency_name, wh_approp_name, fund_name) %>% summarize(sum=sum(expenditure)) %>% arrange(-sum)
 
@@ -1550,6 +1574,14 @@ exp_temp %>% filter(fy == 2022 & (fund_name == "STATE CURE" | fund_name == "LOCA
 exp_temp %>% filter(fy == 2022 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE")) %>% group_by(agency_name) %>% summarize(sum=sum(expenditure)) %>% arrange(-sum)
 
 exp_temp %>% filter(fy == 2021 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE")) %>% group_by(wh_approp_name, fund_name) %>% summarize(sum=sum(expenditure)) %>% arrange(-sum)
+```
+
+### Dropping State CURE Revenue
+
+The Fiscal Futures model focuses on sustainable revenue sources. To understand our fiscal gap and outlook, we need to exclude these one time revenues. GOMB has emphasized that they have allocated COVID dollars to one time expenditures (unemployment trust fund, budget stabilization fund, etc.). 
+
+```{r}
+rev_temp <- rev_temp %>% mutate(covid_dollars = ifelse(source_name_AWM == "FEDERAL STIMULUS PACKAGE",1,0))
 ```
 
 
@@ -1641,7 +1673,7 @@ rev_temp <- rev_temp %>%
 # if source contains any of the codes in in_from_out, code them as 76 (all other rev).
 ```
 
-
+Drops covid dollars: 
 ```{r droprevtypes}
 # revenue types to drop
 drop_type <- c("32", "45", "51", 
@@ -1825,7 +1857,7 @@ aggregate_exp_labeled
 
 Create total revenues and total expenditures only:
 
-- after aggregating expenditures and revenues, pivoting wider, and left_joining the additional mini dataframes (med_option_recent, pension2_fy22, eehc2_amt), then I want to drop the columns that I no longer want and then pivot_longer(). After pivoting_longer() and creating `rev_long` and `exp_long`, expenditures and revenues are in the same format and can be combined together for the totals and gap each year.   
+- after aggregating expenditures and revenues, pivoting wider, then I want to drop the columns that I no longer want and then pivot_longer(). After pivoting_longer() and creating `rev_long` and `exp_long`, expenditures and revenues are in the same format and can be combined together for the totals and gap each year.   
 
 ```{r rev-exp-totals-long-oldcatnames, eval=FALSE, include=FALSE}
 rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
@@ -2065,12 +2097,12 @@ Graphs made from `aggregated_totals_long` dataframe.
 year_totals %>%  
   ggplot() +
   # geom_smooth adds regression line, graphed first so it appears behind line graph
-  geom_smooth(aes(x = Year, y = Revenue), color = "light green", method = "lm", se = FALSE) + 
+  geom_smooth(aes(x = Year, y = Revenue), color = "rosybrown2", alpha = 0.7, method = "lm", se = FALSE) + 
   geom_smooth(aes(x = Year, y = Expenditures), color = "gray", method = "lm", se = FALSE) +
   
   # line graph of revenue and expenditures
-  geom_line(aes(x = Year, y = Revenue), color = "green4") +
-  geom_line(aes(x = Year, y = Expenditures), color = "black") +
+  geom_line(aes(x = Year, y = Revenue), color = "Black", size=1) +
+  geom_line(aes(x = Year, y = Expenditures), color = "red", size=1) +
   
   # labels
     theme_bw() +
@@ -2206,8 +2238,8 @@ rev_long %>%
             size = 2.8) +
          geom_point(aes(color = Year), size=2)  +
   labs(title = "2021 to 2022 Change in Revenue", x = "Millions of Dollars" , y = "",  caption = "")  +
-   scale_color_brewer(palette = "paired", labels = c("FY 2021", "FY 2022"))+
-   theme_classic()+ 
+   scale_fill_manual(values = c("#d62828", "#003049"), labels = c("FY 2021", "FY 2022"))+
+    scale_color_manual(values = c("#d62828", "#003049")) +   theme_classic()+ 
     theme(
    legend.position = "bottom" ,
   axis.text.y = element_blank(),
@@ -2224,13 +2256,16 @@ exp_long %>%
     filter(Year == "2022" | Year == "2021") %>%
   mutate(Year = as.character(Year)) %>%
   ggplot(aes(x = Dollars, y = reorder(Category, Dollars))) +
-  geom_line(aes(group = Category) )+
+  geom_line(aes(group = Category, alpha = 0.5) )+
     geom_text(aes(x = ifelse(Year == "2022", as.numeric(Dollars), NA),  label = ifelse(Year == "2022", Category_name, "")),  
             hjust = -0.2,
             size = 2.8) +
-         geom_point(aes(color = Year), size=2)  +
+  geom_point(aes(color = Year), size=2 #, alpha = 0.5
+             )  +
   labs(title = "2021 to 2022 Change in Expenditures", x = "Millions of Dollars" , y = "",  caption = "")  +
-   scale_color_brewer(palette = "paired", labels = c("FY 2021", "FY 2022"))+
+   scale_fill_manual(values = c("#d62828", "#003049"), labels = c("FY 2021", "FY 2022"))+
+    scale_color_manual(values = c("#d62828", "#003049")) +
+
    theme_classic()+ 
     theme(
     legend.position = "bottom" ,
@@ -2285,6 +2320,16 @@ exp_long %>%
 
 
 ```
+
+### Federal Medicaid Reimbursements
+
+
+### Top 3 Reveues
+
+```{r}
+
+```
+
 
 
 # CAGR / Growth
@@ -2471,6 +2516,285 @@ dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long,
 
 write.xlsx(dataset_names, file = 'summary_file_FY2022.xlsx')
 ```
+# Drop COVID Dollars
+
+If only sustainable revenues are included in the model, then the federal dollars from the pandemic response (CARES, CRSSA,& ARPA)should be excluded from the calculation of the fiscal gap. 
+
+```{r drop-coviddollars}
+rev_temp <- rev_temp %>%  filter(covid_dollars==0) # keeps observations that were not coded as COVID federal funds
+
+
+ff_rev <- rev_temp %>% 
+  group_by(rev_type_new, fy) %>% 
+  summarize(sum_receipts = sum(receipts, na.rm=TRUE)/1000000 ) %>%
+  pivot_wider(names_from = "rev_type_new", values_from = "sum_receipts", names_prefix = "rev_")
+
+ff_rev<- left_join(ff_rev, tax_refund)
+
+ff_rev <- mutate_all(ff_rev, ~replace_na(.,0))
+
+
+ff_rev <- ff_rev %>%
+  mutate(rev_02 = rev_02 - ref_02,
+         rev_03 = rev_03 - ref_03,
+         rev_06 = rev_06 - ref_06,
+         rev_09 = rev_09 - ref_09,
+         rev_21 = rev_21 - ref_21,
+         rev_24 = rev_24 - ref_24,
+         rev_35 = rev_35 - ref_35
+
+         ) %>% 
+  select(-c(ref_02:ref_35, rev_99, rev_NA, rev_76
+            ))
+
+rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(Year = fy) %>%
+  mutate(Category_name = case_when(
+    Category == "02" ~ "INDIVIDUAL INCOME TAXES" ,
+    Category == "03" ~ "CORPORATE INCOME TAXES" ,
+    Category == "06" ~ "SALES TAXES" ,
+    Category == "09" ~ "MOTOR FUEL TAX" ,
+    Category == "12" ~ "PUBLIC UTILITY TAXES" ,
+    Category == "15" ~ "CIGARETTE TAXES" ,
+    Category == "18" ~ "LIQUOR GALLONAGE TAXES" ,
+    Category == "21" ~ "INHERITANCE TAX" ,
+    Category == "24" ~ "INSURANCE TAXES&FEES&LICENSES" ,
+    Category == "27" ~ "CORP FRANCHISE TAXES & FEES" ,
+    Category == "30" ~ "HORSE RACING TAXES & FEES",  # in Other
+    Category == "31" ~ "MEDICAL PROVIDER ASSESSMENTS" ,
+    Category == "32" ~ "GARNISHMENT-LEVIES" , # dropped
+    Category == "33" ~  "LOTTERY RECEIPTS" ,
+    Category == "35" ~  "OTHER TAXES" ,
+    Category == "36" ~  "RECEIPTS FROM REVENUE PRODUCING", 
+    Category == "39" ~  "LICENSES, FEES & REGISTRATIONS" ,
+    Category == "42" ~  "MOTOR VEHICLE AND OPERATORS" ,
+    Category == "45" ~  "STUDENT FEES-UNIVERSITIES",   # dropped
+    Category == "48" ~  "RIVERBOAT WAGERING TAXES" ,
+    Category == "51" ~  "RETIREMENT CONTRIBUTIONS" , # dropped
+    Category == "54" ~ "GIFTS AND BEQUESTS", 
+    Category == "57" ~  "FEDERAL OTHER" ,
+    Category == "58" ~  "FEDERAL MEDICAID", 
+    Category == "59" ~  "FEDERAL TRANSPORTATION" ,
+    Category == "60" ~  "OTHER GRANTS AND CONTRACTS", #other
+    Category == "63" ~  "INVESTMENT INCOME", # other
+    Category == "66" ~ "PROCEEDS,INVESTMENT MATURITIES" , #dropped
+    Category == "72" ~ "BOND ISSUE PROCEEDS",  #dropped
+    Category == "75" ~  "INTER-AGENCY RECEIPTS ",  #dropped
+    Category == "76" ~  "TRANSFER IN FROM OUT FUNDS",  #other
+    Category == "78" ~  "ALL OTHER SOURCES" ,
+    Category == "79" ~   "COOK COUNTY IGT", #dropped
+    Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
+                 T ~ "Check Me!"
+
+  ) )%>% 
+  mutate(Category_name = str_to_title(Category_name))
+
+
+
+
+
+
+aggregated_totals_long <- rbind(rev_long, exp_long)
+
+year_totals <- aggregated_totals_long %>% 
+  group_by(type, Year) %>% 
+  summarize(Dollars = sum(Dollars, na.rm = TRUE)) %>% 
+  pivot_wider(names_from = "type", values_from = Dollars) %>% 
+  rename(
+         Expenditures = exp,
+         Revenue = rev) %>%  
+  mutate(Gap = Revenue - Expenditures) %>% 
+  arrange(desc(Year))
+# creates variable for the Gap each year
+
+year_totals
+
+year_totals %>%  
+  ggplot() +
+  # geom_smooth adds regression line, graphed first so it appears behind line graph
+  geom_smooth(aes(x = Year, y = Revenue), color = "light green", method = "lm", se = FALSE) + 
+  geom_smooth(aes(x = Year, y = Expenditures), color = "gray", method = "lm", se = FALSE) +
+  
+  # line graph of revenue and expenditures
+  geom_line(aes(x = Year, y = Revenue), color = "green4") +
+  geom_line(aes(x = Year, y = Expenditures), color = "black") +
+  
+  # labels
+    theme_bw() +
+  scale_y_continuous(labels = comma)+
+  xlab("Year") + 
+  ylab("Millions of Dollars")  +
+  ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
+```
+
+
+**Expenditure and revenue amounts in millions of dollars:** 
+```{r}
+exp_long %>%
+  filter(Year == 2022) %>%
+  #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
+ # select(-c(Year, `Total Expenditures`)) %>%
+  arrange(desc(`Dollars`)) %>%
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
+  coord_flip() +
+      theme_bw() +
+  labs(title = "Expenditures for FY2022") +
+    xlab("Expenditure Categories") +
+  ylab("Millions of Dollars") 
+
+rev_long %>%
+  filter(Year == 2022) %>%
+  #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
+ # select(-c(Year, `Total Expenditures`)) %>%
+  arrange(desc(`Dollars`)) %>%
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
+  coord_flip() +
+    theme_bw() +
+      labs(title = "Revenues for FY2022")+
+    xlab("Revenue Categories") +
+  ylab("Millions of Dollars") 
+
+
+# function for calculating the CAGR
+calc_cagr <- function(df, n) {
+  df <- exp_long %>%
+    select(-type) %>%
+    arrange(Category_name, Year) %>%
+    group_by(Category_name) %>%
+    mutate(cagr = ((`Dollars` / lag(`Dollars`, n)) ^ (1 / n)) - 1)
+
+  return(df)
+}
+
+# This works for one variable at a time
+cagr_24 <- calc_cagr(exp_long, 24) %>% 
+  # group_by(Category) %>%
+  summarize(cagr_24 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr23_precovid <- exp_long %>%
+  filter(Year <= 2019) %>%
+  calc_cagr(21) %>% 
+  summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+
+
+cagr_10 <- calc_cagr(exp_long, 10) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_10 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_5 <- calc_cagr(exp_long, 5) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_5 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_3 <- calc_cagr(exp_long, 3) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_3 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_2 <- calc_cagr(exp_long, 2) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_2 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_1 <- calc_cagr(exp_long, 1) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_1 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+CAGR_expenditures_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_24 ) %>% 
+  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
+  rename("Expenditure Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"24 Year CAGR" = cagr_24 )
+
+CAGR_expenditures_summary %>% 
+  kbl(caption = "CAGR Calculations for Expenditure Categories") %>% 
+  kable_styling(bootstrap_options = c("striped"))
+
+calc_cagr <- function(df, n) {
+  df <- rev_long %>%
+    arrange(Category_name, Year) %>%
+    group_by(Category_name) %>%
+    mutate(cagr = ((Dollars / lag(Dollars, n)) ^ (1 / n)) - 1)
+
+  return(df)
+}
+
+# This works for one variable at a time
+cagr_24 <- calc_cagr(rev_long, 24) %>% 
+     # group_by(Category) %>%
+  summarize(cagr_24 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr_10 <- calc_cagr(rev_long, 10) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_10 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_5 <- calc_cagr(rev_long, 5) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_5 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_3 <- calc_cagr(rev_long, 3) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_3 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_2 <- calc_cagr(rev_long, 2) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_2 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+ cagr_1 <- calc_cagr(rev_long, 1) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_1 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+CAGR_revenue_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_24) %>%   
+  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
+  rename("Revenue Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"24 Year CAGR" = cagr_24 )
+
+CAGR_revenue_summary %>% 
+  kbl(caption = "CAGR Calculations for Revenue Sources") %>% 
+  kable_styling(bootstrap_options = c("striped"))
+
+rm(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_24)
+
+
+revenue_change <- rev_long %>%
+  select(-c(type,Category)) %>%
+  filter(Year > 2020) %>%
+  pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
+  mutate(
+    "FY 2022 Revenues ($ billions)" = round(Dollars_2022/1000, digits = 1),
+         "Percent Change from 2021 to 2022" = round(((Dollars_2022 -Dollars_2021)/Dollars_2021*100), digits = 2)) %>%
+  left_join(CAGR_revenue_summary, by = c("Category_name" = "Revenue Category")) %>% 
+    arrange(-`FY 2022 Revenues ($ billions)`)%>%
+  rename( "Compound Annual Growth, 1998-2022*" = `24 Year CAGR`, 
+          "FY2022 Revenue Category" = Category_name ) %>%
+  select(-c(Dollars_2021, Dollars_2022, `1 Year CAGR`:`10 Year CAGR`)) 
+
+revenue_change %>% 
+  kbl(caption = "Yearly Change in Revenue") %>% 
+  kable_styling(bootstrap_options = c("striped"))
+
+expenditure_change <- exp_long %>%
+  select(-c(type,Category)) %>%
+  filter(Year > 2020) %>%
+  pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
+  mutate("FY 2022 Expenditures ($ billions)" = round(Dollars_2022/1000, digits = 1),
+         "Percent Change from 2021 to 2022" = round((Dollars_2022 -Dollars_2021)/Dollars_2021*100, digits = 2) )%>%
+  left_join(CAGR_expenditures_summary, by = c("Category_name" = "Expenditure Category")) %>% 
+  arrange(-`FY 2022 Expenditures ($ billions)`)%>%
+  select(-c(Dollars_2022, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`)) %>%
+  rename( "Compound Annual Growth, 1998-2022*" = `24 Year CAGR`, 
+          "FY2022 Expenditure Category" = Category_name )
+
+expenditure_change %>% 
+  kbl(caption = "Yearly Change in Expenditures") %>% 
+  kable_styling(bootstrap_options = c("striped"))
+           
+
+
+dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long, 
+                      `Table 1` = expenditure_change, `Table 2` = revenue_change,
+                      'Table 4.a' = CAGR_revenue_summary, 'Table 4.b' = CAGR_expenditures_summary, 
+                      'year_totals' = year_totals)
+
+write.xlsx(dataset_names, file = 'summary_file_droppeCOVIDrevs_FY2022.xlsx')
+```
 
 
 # Forecasting attempt
@@ -2499,9 +2823,7 @@ myforecastrev <- forecast(mymodel, h = 20)
 plot(myforecastrev,  xlab ="", 
      ylab ="Total Revenue",
      main ="Chicago Revenue")
-```
 
-```{r}
 tsexp <- ts(year_totals$Expenditures, start = "1998", frequency = 1)
 model_exp<- auto.arima(tsexp, seasonal = FALSE)
 model_exp # ARIMA (0,1,1) with drift
@@ -2510,9 +2832,7 @@ forecast_exp <- forecast(model_exp, h = 20)
 plot(forecast_exp, xlab ="", 
      ylab ="Total Expenditures",
      main ="Chicago Expenditures")
-```
 
-```{r}
 p <- forecast(model_exp,  h = 20) %>% 
   autoplot() +
     ylab("Dollars (Millions)") +
@@ -2531,9 +2851,9 @@ annotation <- data.frame(
 p + geom_label(data = annotation, aes(x=x, y=y, label=label), size = 3) + labs(title = "Forecasted Expenditures", caption = "Projected values at 95% confidence interval. 
 Dark blue represents 80% liklihood of falling with that range, 
                                                                                light blue represents 95% liklihood of being in projected range.")
-```
 
-```{r}
+
+
 #### revenue chart
 model_rev <- auto.arima(tsrev, seasonal = FALSE)
 forecast_rev <- forecast(model_rev, h = 20)
@@ -2550,13 +2870,14 @@ summary(forecast_rev)
 
 annotation <- data.frame(
   x = c(2027, 2032),
-  y = c(130000, 300000),  
-  label = c("Crazy number 1 in 2027","crazy number 2 in 2032")
+  y = c(200000, 300000),  
+  label = c("$120 billion in 2027","$135 billion in 2032")
 )
 
 q+ geom_label(data = annotation, aes(x=x, y=y, label=label), size = 3) +
-  labs(caption = "Skewed by 2022 federal revenues")
+  labs(caption = "after dropping federal covid dollars")
 ```
+
 revenue forecasting using precovid trends:
 
 ```{r}
@@ -2584,19 +2905,21 @@ annotation <- data.frame(
 )
 
 c+ geom_label(data = annotation, aes(x=x, y=y, label=label), size = 3) + labs(title= "Revenue Forecasted using Pre-Covid Data", subtitle = "Own Source and Federal Revenues Combined")
-```
 
-```{r}
 autoplot(tsexp) +
   #geom_line(tsexp)+
   #geom_line(aes(model_rev))+
   autolayer(forecast_rev, series = "Revenue") +
   autolayer(forecast_exp, series = "Expenditure)", alpha = 0.5) +
   geom_line(year_totals, mapping= aes(x = Year, y = Revenue))  + guides(colour = guide_legend("Forecast")) + 
-  labs(title = "Forecasted Revenue and Expenditures", caption = "Skewed by 2022 federal revenue from Covid response")
+  labs(title = "Forecasted Revenue and Expenditures", caption = "dropped federal revenue from Covid response")
 ```
 
 ### Federal Revenue
+
+
+__Note:__ These are graphed AFTER dropping the COVID response federal dollars. 
+
 
 ```{r}
 fed_rev <- ff_rev %>% select(fy, rev_57, rev_58, rev_59) %>%
@@ -2677,3 +3000,4 @@ fedtotal2 <- forecast(forecast_fed,  h = 20) %>%
 fedtotal2
 ```
 
+Graphing the 3 federal revenue types together may be the most reliable since some COVID funding is still recorded in Federal Other and some are in other categories (like Disaster Response in FY2021). Need to look at more before using. 
