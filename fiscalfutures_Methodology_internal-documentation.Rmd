@@ -1,13 +1,15 @@
 ---
 title: "FY2022 Analysis - Methodology for Fiscal Futures "
 author: "Alea Wilbur"
-date: "December 6 2022"
+date: "December 14 2022"
 output:
-  html_document:
+  html_document: 
     code_folding: hide
     toc: yes
     toc_float: yes
+    theme: simplex
     df_print: paged
+
 ---
 
 
@@ -30,7 +32,32 @@ library(geofacet)
 library(janitor)
 
 
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)#, cache = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
+
+# theme_Alea <- function(base_size = 14) {
+#   theme_bw(base_size = base_size) %+replace%
+#     theme(
+#       plot.title = element_text(size = rel(1), face = "bold", margin = margin(0,0,5,0), hjust = 0),
+# 
+#             panel.grid.minor = element_blank(),
+#       panel.border = element_blank(),
+# 
+#             axis.title = element_text(size = rel(0.85), face = "bold"),
+#       axis.text = element_text(size = rel(0.70), face = "bold"),
+#       axis.line = element_line(color = "black", arrow = arrow(length = unit(0.3, "lines"), type = "closed")),
+# 
+#       
+#             legend.title = element_text(size = rel(0.85), face = "bold"),
+#       legend.text = element_text(size = rel(0.70), face = "bold"),
+#       legend.key = element_rect(fill = "transparent", colour = NA),
+#       legend.key.size = unit(1.5, "lines"),
+#       legend.background = element_rect(fill = "transparent", colour = NA),
+#  
+#       
+#       strip.background = element_rect(fill = "#17252D", color = "#17252D"),
+#       strip.text = element_text(size = rel(0.85), face = "bold", color = "white", margin = margin(5,0,5,0))
+#     )
+# }
 ```
 
 # Data Creation and Cleaning
@@ -261,12 +288,13 @@ Sources 2737 through 2756 were not found in the IOC_source file so I added them 
 
 ### Recoding New and Reused Funds
 
-New funds will need to be manually added to the funds_ab_in excel file and determined if they should or should not be included in Fiscal Future calculations. __Copy info from word file here on how to add funds to excel file__.
+New funds will need to be manually added to the funds_ab_in excel file and determined if they should or should not be included in Fiscal Future calculations.
 
-For funds that were reused once, a 9 replaces the 0 as the first digit. If reused twice, then the first two values are 10.   
+For funds that were reused once, a 9 replaces the 0 as the first digit. If reused twice, then the first two values are 10.    
+
 - Ex. 0350 --> 9350 because its use changed.   
 - Ex. 0367 becomes 10367 because its use has changed twice now. There was fund 0367 originally, then its use changed and it was recoded as 9367, and now it changed again so it is a 10367.  
-- Excel file also has alternative ways to name funds (e.g. 0397-A and 0397-B) and variables for the year that the fund stopped being used. These have not been updated consistently over the years but it is useful information when trying to find any coding mistakes from the past.   
+- Excel file also has alternative ways to name funds (e.g. 0397-A and 0397-B) and variables for the year that the fund stopped being used. These have not been updated consistently over the years but it is useful information when trying to find any coding mistakes from the past.     
 
 New or reused funds revenue file recoding:
 ```{r recode-rev-funds}
@@ -410,8 +438,9 @@ __For yearly expenditure calculations, the state contributions to the pension fu
 
 Pension expenditures referenced in the analysis are based on state payments to the following pension systems:  
 
-• Teachers Retirement System (TRS)  
+• Teachers Retirement System (TRS)   
 - New POB bond in 2019: Accelerated Bond Fund paid benefits in advance as lump sum   
+
 • State Employee Retirement System (SERS)  
 • State University Retirement System (SURS)  
 • Judges Retirement System (JRS)  
@@ -563,9 +592,11 @@ Employer contributions and state pension contributions are an example of an expe
 
 ### Pension Contributions - Revenue Data
 
-  
-rev_type = 51 is for retirement/pension contributions from both employers and employees. These contributions from employers and employees are excluded from the Fiscal Futures model. However, it is still important to understand the money going in and out of then pension funds even if it is not included as a yearly expenditure or revenue. Retirement contribution revenue is graphed below.
+Pension contributions from employees and employers are not included as revenue sources but are useful for understanding the money going into the funds and the money flowing out of the funds. Identifying and graphing employee and employer contributions, as well as benefits paid to retired employees and state contributions was important for checking the items that should and should not be included in the analysis.
+
+ 
 ```{r}
+# rev_type = 51 is for retirement/pension contributions from both employers and employees.
 
 # current year employee revenue source = 0573, contributions by employee == 572 (stops at 2011)
 retirement_contributions <- rev_temp %>% 
@@ -709,8 +740,10 @@ ggplot()+
 
 
 Filtering for interest on short term borrowing and GO bonds (88130008, 88130000, and 88130108) and GO bond principal amounts (88110008).  
+
 - object == 8813 is for all debt service interest but obj_seq_type is used to specify short term borrowing versus regular debt service.   
-- a Interest to Principal ratio is also calculated in the table below.  
+
+- an Interest to Principal ratio is also calculated in the table below.  
 
 Looking only at general obligation principal payments and interest payments:
 
@@ -886,7 +919,7 @@ group_ins2 %>% ggplot(aes(x=fy, y=dropped_group_premiums)) + geom_line() + labs(
 
 If observation is a group insurance contribution, then the expenditure amount is set to $0 (essentially dropped from analysis).
 
-### Health Insurance - Revenue Side
+### Health Insurance Premiums - Revenue Side
 
 Employee insurance premiums for healthcare are a revenue source for the state in the IOC data but are NOT included  in the Fiscal Futures analysis and fiscal gap calculations. 
 
@@ -964,6 +997,21 @@ exp_temp <- exp_temp %>%
 #%>%mutate(in_ff = ifelse(eehc == 2, "1", in_ff) ) %>% filter(eehc ==2 )
 table(exp_temp$eehc)
 ```
+
+## Federal Medicaid Reimbursements and Medicaid Costs
+
+```{r}
+
+medicaid_cost <- exp_temp %>% filter(agency=="478" & (appr_org=="01" | appr_org == "65" | appr_org=="88") & (object=="4900" | object=="4400")) %>% group_by(fy) %>% summarize(sum=sum(expenditure))
+  
+med_reimburse <- rev_temp %>% filter(rev_type=="57" & agency=="478" & (source=="0618"|source=="2364"|source=="0660"|source=="1552"| source=="2306"| source=="2076"|source=="0676"|source=="0692")) %>% group_by(fy) %>% summarize(sum=sum(receipts))
+
+ggplot()+
+  geom_line(data=medicaid_cost, aes(x=fy, y=sum), color = "red") + 
+  geom_line(data=med_reimburse, aes(x=fy, y = sum), color="black") + labs(title = "Medicaid reimbursements and Medicaid expenditures", caption = "Medicaid expenditures include funds provided to medical providers. ")
+
+```
+
 
 # Expenditure & Revenue Categorization
 
@@ -1148,15 +1196,19 @@ State Employee Health Care = Sum of expenditures for "health care coverage as el
 
 In FY2013, the Local Government Health Insurance fund was transferred to the department of Central Management Services (agency changes from 478 to 416 in data.)
 
-Employer group insurance contributions for health insurance are excluded to avoid double counting the cost of healthcare. All employer group insurance contributions are coded as object = 1180. BUT the last two fiscal years were coded as 1900 instead of 1180 for lump sums instead of employer contributions      
-- anything to do with pandemic money categorization?   
+Employer group insurance contributions for health insurance are excluded to avoid double counting the cost of healthcare. All employer group insurance contributions are coded as object = 1180. BUT the last two fiscal years were coded as 1900 instead of 1180 for lump sums instead of employer contributions    
+
+- anything to do with pandemic federal money categorization? Was a lump sum or transfer used to pay the group contribution and coded differently?   
+
+- This group insurance expenditure coded as 1900 instead of 1180 caused one of the major problems when calculating the fiscal gap for FY21. Stata code originally failed to drop group insurance expenditure in FY21 (since object was = 1900 instead of 1180) and resulted in expenditures being around $2 billion higher than they should have been for Central Management expenditures. This was noticed by GOMB (Alexis Sturm) and resulted in looking deeper into what items are going in and out of health care funds (See [State Employee Healthcare Discussion]).   
 
 
 
+Relevant funds:   
 Fund = 0457 is "Group insurance premium", in_ff = 1  
 Fund = 0193 is "Local govt health insurance reserve", in=ff = 0  
 fund = 0477 is "Community College Health Insurance", in=ff = 0.     
-- had large amount in early years  
+- had large amount in early years    
 Fund = 0907 = health insurance reserve, in_ff = 1  
 Fund = 9939 is "group self-insurers' insolv", in_ff = 1  
 Fund = 0940 is Self-Insurers security, in_ff = 0  
@@ -1164,7 +1216,7 @@ Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1
 
 
 - eehc = 0 means it is NOT a state healthcare cost but it is an employer contribution of some type to some fund   
-- eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance
+- eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance   
 
 
 Of the many different ways I have coded the healthcare costs, most do not have expenditures during 2010, 2011, 2016, 2017.
@@ -1259,9 +1311,7 @@ The five corresponding revenue items are:
 • Local share of Motor Fuel Tax 
   - Transportation Renewal Fund 0952  
   
-Notes - these don't exit:
-- fund=="0627" & object=="4472"~ "976" # public transportation   
-- fund=="0648" & object=="4472" ~ "976",
+
 
 ```{r transfers-to-local}
 exp_temp <- exp_temp %>% mutate(
@@ -1368,7 +1418,7 @@ medicaid_check %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrang
 ```
 
 
-## Add Other Fiscal Future group codes
+### Add Other Fiscal Future group codes
 
 ```{r group-codes}
 
@@ -1576,9 +1626,11 @@ exp_temp %>% filter(fy == 2022 & (fund_name == "STATE CURE" | fund_name == "LOCA
 exp_temp %>% filter(fy == 2021 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE")) %>% group_by(wh_approp_name, fund_name) %>% summarize(sum=sum(expenditure)) %>% arrange(-sum)
 ```
 
-### Dropping State CURE Revenue
+**Dropping State CURE Revenue**
 
-The Fiscal Futures model focuses on sustainable revenue sources. To understand our fiscal gap and outlook, we need to exclude these one time revenues. GOMB has emphasized that they have allocated COVID dollars to one time expenditures (unemployment trust fund, budget stabilization fund, etc.). 
+The Fiscal Futures model focuses on sustainable revenue sources. To understand our fiscal gap and outlook, we need to exclude these one time revenues. GOMB has emphasized that they have allocated COVID dollars to one time expenditures (unemployment trust fund, budget stabilization fund, etc.). The fiscal gap, graphs,and CAGRs have been recalculated in the [Drop COVID Dollars] section below. In addition, an attempt at forecasting revenue and expenditures is also made after dropping the federal COVID dollars.
+
+> NOTE: I have only dropped State and Local CURE revenue so far. Federal money went into other funds during the beginning of pandemic.
 
 ```{r}
 rev_temp <- rev_temp %>% mutate(covid_dollars = ifelse(source_name_AWM == "FEDERAL STIMULUS PACKAGE",1,0))
@@ -1587,17 +1639,21 @@ rev_temp <- rev_temp %>% mutate(covid_dollars = ifelse(source_name_AWM == "FEDER
 
 ### Health Insurance Premiums from Employees
 
-0120 = ins prem-option life
-0120 = ins prem-optional life/univ
 
-0347 = optional health - HMO
-0348 = optional health - dental 
-0349 = optional health - univ/local SI
-0350 = optional health - univ/local
-0351 = optional health - retirement
-0352 = optional health - retirement SI
-0353 = optional health - retire/dental
-0354 = optional health - retirement hmo
+Insurance premiums for employees is coded below but it is NOT used in the fiscal futures model. Employee and employer premiums are considered rev_51 and dropped from analysis in later step. 
+
+
+0120 = ins prem-option life   
+0120 = ins prem-optional life/univ   
+
+0347 = optional health - HMO  
+0348 = optional health - dental   
+0349 = optional health - univ/local SI  
+0350 = optional health - univ/local  
+0351 = optional health - retirement  
+0352 = optional health - retirement SI  
+0353 = optional health - retire/dental   
+0354 = optional health - retirement hmo    
 
 2199-2209 = various HMOs, dental, health plans from Health Insurance Reserve (fund)
 
@@ -1622,6 +1678,7 @@ rev_temp <- rev_temp %>%
 
 
 # # optional insurance premiums = employee insurance premiums
+
 # emp_premium <- rev_temp %>%
 #   group_by(fy, employee_premiums) %>%
 #   summarize(employee_premiums_sum = sum(receipts)/1000000) %>%
@@ -1640,17 +1697,21 @@ emp_premium_long <- rev_temp %>%  filter(employee_premiums == 1)
 
 ```
 
-Employee premiums on the revenue side should have receipts coded as $0 or be dropped using anti_join(). 
+Employee premiums are dropped in the following steps. In FY21, employee premiums were subtracted from state healthcare costs on the expenditure side to calculate a "Net Healthcare Cost" but that methodology has been discontinued. Totals were practically unchanged: revenue from employee premiums is also very small. 
 
 
 ### Transfers in and Out: 
+
+Funds that hold and disperse local taxes or fees are dropped from the analysis. Then other excluded revenue types are also dropped.
+
+Drops Blank, Student Fees, Retirement contributions, proceeds/investments, bond issue proceeds, interagency receipts, cook IGT, Prior year refunds:
 
 **I don't have much faith in the transfers in and out steps- AWM**
 
 I am currently choosing to exclude the totals from this step. Overall, this decreases the total revenues in "All Other Revenues" by a few million dollars.
 
 - in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")   
-- See the methodology document for the list of what these sources/funds are. 
+- See the methodology document for the list of what these sources/funds are.   
 
 
 ```{r step-3.8}
@@ -1671,9 +1732,11 @@ in_out_df <- rev_temp %>%
 rev_temp <- rev_temp %>% 
   mutate(rev_type_new = ifelse(source %in% in_from_out, "76", rev_type))
 # if source contains any of the codes in in_from_out, code them as 76 (all other rev).
+# I end up excluding rev_76 in later steps
 ```
 
-Drops covid dollars: 
+
+
 ```{r droprevtypes}
 # revenue types to drop
 drop_type <- c("32", "45", "51", 
@@ -1710,14 +1773,18 @@ rm(exp_1998_2022)
 
 ## Pivoting and Merging
 
-- Local Government Transfers (exp_970) should be on the expenditure side
+- Local Government Transfers (exp_970) should be on the expenditure side  
 
- 
+- ~~State employer group insurance contributions should be dropped to avoid double counting both the state.~~   Do not do this. This was done for FY21 only and will not be done again.   
+- ~~Subtract employee insurance premiums from State Employee Healthcare Expenditures (group == 904) - Employee Premiums = Actual state healthcare costs.~~   
+- ~~ff_exp$exp904 − emp_premium$employee_premiums_sum = statehealthcarecosts~~
 
-## Revenues
+  - Did in FY21, but not doing again. Minor difference in fiscal gap overall from change in methodology.   
 
-I chose to drop rev_76 for Transfers in and Out because I do not understand why that step occurs in the previously used Stata code. If I keep rev_76 in and include it in rev_78 for All Other Revenues, then the difference between R and Stata code should be resolved.  
-  - after Stata code is edited to drop employee insurance premium revenue from all other revenues. Currently it keeps it in AND subtracts it from state healthcare expenditures.  
+
+### Revenues
+
+I chose to drop rev_76 for Transfers in and Out because I do not understand why that step occurs in the previously used Stata code. Rev_76 was created and included in rev_78 for All Other Revenues in old Stata code for years before FY21 but that method has been discontinued for FY22.      
 
 ```{r final-ffrev-table}
 ff_rev <- rev_temp %>% 
@@ -1795,15 +1862,15 @@ aggregate_rev_labels <- ff_rev %>%
 
 aggregate_rev_labels
 
-# Still contains columns that should be dropped for the clean final aggregate table. Drop the variables I don't want in the output table in the "graphs" section.  
-
 ```
 
 
 
-## Expenditures
+### Expenditures
 
 Create exp_970 for all local government transfers (exp_971 + exp_972  + exp_975 + exp_976).
+
+~~Create state employee healthcare costs that reflects the health costs minus the optional insurance premiums that came in (904_new=904−med_option_amt_recent).~~ Do not do this. This was done for FY21 only and will not be done again. Small differences in overall Fiscal Gap from methodology change.  
 
 ```{r}
 
@@ -2069,19 +2136,38 @@ aggregated_totals_long <- rbind(rev_long, exp_long)
 aggregated_totals_long
 
 
+
 year_totals <- aggregated_totals_long %>% 
   group_by(type, Year) %>% 
   summarize(Dollars = sum(Dollars, na.rm = TRUE)) %>% 
   pivot_wider(names_from = "type", values_from = Dollars) %>% 
+
   rename(
          Expenditures = exp,
          Revenue = rev) %>%  
-  mutate(Gap = Revenue - Expenditures) %>% 
-  arrange(desc(Year))
+  mutate(`Fiscal Gap` = round(Revenue - Expenditures))
+# %>%  arrange(desc(Year))
 # creates variable for the Gap each year
 
-year_totals
+year_totals  %>%  
+  kbl(caption = "Fiscal Gap for each Fiscal Year") %>% 
+  kable_styling(bootstrap_options = c("striped"))  %>%
+kable_classic() %>%   add_footnote(c("Methodology has changed since past publications","Values include State and Local CURE dollars"))
+```
 
+
+```{r include = FALSE}
+
+# Other ways to make tables fancy with kableExtra
+
+
+#add_header_above(c("Header1" = 1, "Header2" = 2)) %>%
+#add_header_above(c("HigherHeader" = 1))
+# number represents the number of columns to clump together!! Not the order!
+
+# grouping columns example:
+ # group_rows("Before crisis", 1, 5, label_row_css = "background-color: #666; color: #fff;") %>%
+ # group_rows("After crisis", 6, 10, label_row_css = "background-color: #666; color: #fff;")
 #write_csv(aggregated_totals_long, "aggregated_totals.csv")
 
 ```
@@ -2094,6 +2180,14 @@ year_totals
 Graphs made from `aggregated_totals_long` dataframe. 
 
 ```{r}
+
+annotation <- data.frame(
+  x = c(2004, 2017, 2019),
+  y = c(60000, 50000, 5000),  
+  label = c("Expenditures","Revenue", "Fiscal Gap")
+)
+
+
 year_totals %>%  
   ggplot() +
   # geom_smooth adds regression line, graphed first so it appears behind line graph
@@ -2110,6 +2204,33 @@ year_totals %>%
   xlab("Year") + 
   ylab("Millions of Dollars")  +
   ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
+
+
+
+fiscal_gap <- year_totals %>%  
+  ggplot() +
+  geom_hline(yintercept = 0) +
+  # geom_smooth adds regression line, graphed first so it appears behind line graph
+  geom_smooth(aes(x = Year, y = Revenue), color = "rosybrown2", alpha = 0.7, method = "lm", se = FALSE) + 
+  geom_smooth(aes(x = Year, y = Expenditures), color = "gray", method = "lm", se = FALSE) +
+
+  
+  # line graph of revenue and expenditures
+  geom_line(aes(x = Year, y = Revenue), color = "Black", size=1) +
+  geom_line(aes(x = Year, y = Expenditures), color = "red", size=1) +
+  geom_line(aes(x = Year, y = `Fiscal Gap`), color = "gray") +
+  
+  geom_text(data = annotation, aes(x=x, y=y, label=label))+
+  # labels
+    theme_bw() +
+  scale_y_continuous(labels = comma)+
+  xlab("Year") + 
+  ylab("Millions of Dollars")  +
+  ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
+
+fiscal_gap
+
+
 ```
 
 
@@ -2143,9 +2264,10 @@ exp_long %>%
  # select(-c(Year, `Total Expenditures`)) %>%
   arrange(desc(`Dollars`)) %>%
   ggplot() + 
-  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`, fill = "red"))+ 
   coord_flip() +
-      theme_bw() +
+      theme_bw()+
+  theme(legend.position = "none") +
   labs(title = "Expenditures for FY2022") +
     xlab("Expenditure Categories") +
   ylab("Millions of Dollars") 
@@ -2159,6 +2281,7 @@ rev_long %>%
   geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
   coord_flip() +
     theme_bw() +
+    theme(legend.position = "none") +
       labs(title = "Revenues for FY2022")+
     xlab("Revenue Categories") +
   ylab("Millions of Dollars") 
@@ -2204,7 +2327,7 @@ exp_long %>%
  # select(-c(Year, Dollars, rank)) %>%
   arrange(desc(Dollars)) %>%
   ggplot() + 
-  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`), fill = "light green")+ 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`), fill = "rosybrown2")+ 
   coord_flip() +
       theme_bw() +
     labs(title = "Expenditures for FY2022") +
@@ -2217,7 +2340,7 @@ rev_long %>%
         Category_name = ifelse(rank > 10, Category_name, 'All Other Sources')) %>%
   arrange(desc(Dollars)) %>%
   ggplot() + 
-  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`), fill = "light blue")+ 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`), fill = "dark gray")+ 
   coord_flip() +
       theme_bw() +
     labs(title = "Revenues for FY2022") +
@@ -2239,16 +2362,19 @@ rev_long %>%
          geom_point(aes(color = Year), size=2)  +
   labs(title = "2021 to 2022 Change in Revenue", x = "Millions of Dollars" , y = "",  caption = "")  +
    scale_fill_manual(values = c("#d62828", "#003049"), labels = c("FY 2021", "FY 2022"))+
-    scale_color_manual(values = c("#d62828", "#003049")) +   theme_classic()+ 
+    scale_color_manual(values = c("#d62828", "#003049")) +   
+  theme_classic()+ 
     theme(
    legend.position = "bottom" ,
   axis.text.y = element_blank(),
   axis.ticks.y = element_blank(),
   axis.line.y.left  = element_blank(),
-  axis.line.x = element_blank(),
-    axis.title.y = element_blank(),
-  axis.ticks.x = element_blank())+
-  scale_x_continuous(limits = c(0, 30000))
+ # axis.line.x = element_blank(),
+  #  axis.title.y = element_blank(),
+ # axis.ticks.x = element_blank()
+ )+
+  scale_x_continuous(limits = c(0, 31000), labels = comma)
+
 
 
 
@@ -2256,9 +2382,10 @@ exp_long %>%
     filter(Year == "2022" | Year == "2021") %>%
   mutate(Year = as.character(Year)) %>%
   ggplot(aes(x = Dollars, y = reorder(Category, Dollars))) +
-  geom_line(aes(group = Category, alpha = 0.5) )+
-    geom_text(aes(x = ifelse(Year == "2022", as.numeric(Dollars), NA),  label = ifelse(Year == "2022", Category_name, "")),  
-            hjust = -0.2,
+  geom_line(aes(group = Category) )+
+  geom_text(aes(x = ifelse(Year == "2022", (as.numeric(Dollars)+1100), NA),  
+                label = ifelse(Year == "2022", Category_name, "")),  
+            hjust = 0,
             size = 2.8) +
   geom_point(aes(color = Year), size=2 #, alpha = 0.5
              )  +
@@ -2272,10 +2399,11 @@ exp_long %>%
   axis.text.y = element_blank(),
   axis.ticks.y = element_blank(),
   axis.line.y.left  = element_blank(),
-  axis.line.x = element_blank(),
-    axis.title.y = element_blank(),
-  axis.ticks.x = element_blank())+
-  scale_x_continuous(limits = c(0, 30000))
+  #axis.line.x = element_blank(),
+   # axis.title.y = element_blank(),
+  #axis.ticks.x = element_blank()
+  )+
+  scale_x_continuous(limits = c(0, 31000), labels = comma)
 ```
 
 
@@ -2321,13 +2449,37 @@ exp_long %>%
 
 ```
 
-### Federal Medicaid Reimbursements
+
 
 
 ### Top 3 Reveues
 
 ```{r}
+top3 <- rev_long  %>% filter(Category == "02" | Category == "03" | Category == "06") %>%
+  ggplot()+geom_line(aes(x=Year, y=Dollars, color = Category)) + 
+  labs(title = "Top 3 Own Source Revenues", subtitle = "Individual Income Taxes, Corporate income taxes, and Sales Taxes")
 
+top3
+```
+
+### Own Source and Fed Transfers
+
+
+```{r}
+ownsource_rev <- rev_long %>%
+  filter(Category != "57" | Category != "58" | Category != "59") %>% group_by(Year) %>% summarize(Dollars = sum(Dollars))
+
+ownsource_rev %>% 
+  ggplot()+geom_line(aes(x=Year, y=Dollars)) + 
+  labs(title = "Own Source Revenues", subtitle = "Total own source revenue", y = "Millions of Dollars")
+
+fed_rev <- ff_rev %>% select(fy, rev_57, rev_58, rev_59) %>%
+  mutate(fed_total = rev_57+rev_58+rev_59)
+
+ggplot() + 
+  geom_line(data = ownsource_rev, aes(x=Year, y=Dollars), color = "Green") + 
+  geom_line(data = fed_rev, aes(x=fy, y=fed_total), color = "Blue") + labs(title = "Own Source Revenue and Federal Transfers", caption = "Green is own source revenues,
+                                                                           Blue is federal transfers.")
 ```
 
 
@@ -2501,7 +2653,6 @@ expenditure_change %>%
            
 ```
 
-# Create summary file
 
 Saves main items in one excel file named `summary_file.xlsx`. Delete `eval=FALSE` to run on local computer.
 
@@ -2516,9 +2667,14 @@ dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long,
 
 write.xlsx(dataset_names, file = 'summary_file_FY2022.xlsx')
 ```
+
 # Drop COVID Dollars
 
 If only sustainable revenues are included in the model, then the federal dollars from the pandemic response (CARES, CRSSA,& ARPA)should be excluded from the calculation of the fiscal gap. 
+
+The Fiscal Futures model focuses on sustainable revenue sources. To understand our fiscal gap and outlook, we need to exclude these one time revenues. GOMB has emphasized that they have allocated COVID dollars to one time expenditures (unemployment trust fund, budget stabilization fund, etc.). The fiscal gap, graphs,and CAGRs have been recalculated in the [Drop COVID Dollars] section below. In addition, an attempt at forecasting revenue and expenditures is also made after dropping the federal COVID dollars.
+
+> NOTE: I have only dropped State and Local CURE revenue so far. Federal money went into other funds during the beginning of pandemic.
 
 ```{r drop-coviddollars}
 rev_temp <- rev_temp %>%  filter(covid_dollars==0) # keeps observations that were not coded as COVID federal funds
@@ -2596,28 +2752,38 @@ rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"),
 
 aggregated_totals_long <- rbind(rev_long, exp_long)
 
-year_totals <- aggregated_totals_long %>% 
+year_totals2 <- aggregated_totals_long %>% 
   group_by(type, Year) %>% 
   summarize(Dollars = sum(Dollars, na.rm = TRUE)) %>% 
   pivot_wider(names_from = "type", values_from = Dollars) %>% 
   rename(
          Expenditures = exp,
          Revenue = rev) %>%  
-  mutate(Gap = Revenue - Expenditures) %>% 
+  mutate(`Fiscal Gap` = round(Revenue - Expenditures)) %>% 
   arrange(desc(Year))
 # creates variable for the Gap each year
 
-year_totals
+year_totals2
 
-year_totals %>%  
+annotation <- data.frame(
+  x = c(2004, 2017, 2019),
+  y = c(60000, 50000, 10000),  
+  label = c("Expenditures","Revenue", "Fiscal Gap")
+)
+
+fiscal_gap_droppedCURE<-year_totals2 %>%  
   ggplot() +
+  geom_hline(yintercept=0)+
   # geom_smooth adds regression line, graphed first so it appears behind line graph
-  geom_smooth(aes(x = Year, y = Revenue), color = "light green", method = "lm", se = FALSE) + 
-  geom_smooth(aes(x = Year, y = Expenditures), color = "gray", method = "lm", se = FALSE) +
+  geom_smooth(aes(x = Year, y = Revenue), color = "gray", method = "lm", se = FALSE) + 
+  geom_smooth(aes(x = Year, y = Expenditures), color = "rosybrown2", method = "lm", se = FALSE) +
   
   # line graph of revenue and expenditures
-  geom_line(aes(x = Year, y = Revenue), color = "green4") +
-  geom_line(aes(x = Year, y = Expenditures), color = "black") +
+  geom_line(aes(x = Year, y = Revenue), color = "black", size=1) +
+  geom_line(aes(x = Year, y = Expenditures), color = "red", size=1) +
+  geom_line(aes(x=Year, y = `Fiscal Gap`), color="gray") +
+  
+  geom_text(data= annotation, aes(x=x, y = y, label=label))+
   
   # labels
     theme_bw() +
@@ -2625,6 +2791,16 @@ year_totals %>%
   xlab("Year") + 
   ylab("Millions of Dollars")  +
   ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
+
+fiscal_gap_droppedCURE
+```
+
+Compare with and without federal COVID dollars:
+
+```{r}
+library(gridExtra)
+
+cowplot::plot_grid(fiscal_gap, fiscal_gap_droppedCURE)
 ```
 
 
@@ -2636,9 +2812,11 @@ exp_long %>%
  # select(-c(Year, `Total Expenditures`)) %>%
   arrange(desc(`Dollars`)) %>%
   ggplot() + 
-  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`, fill = "rosybrown2"))+ 
   coord_flip() +
       theme_bw() +
+    theme(legend.position = "none") +
+
   labs(title = "Expenditures for FY2022") +
     xlab("Expenditure Categories") +
   ylab("Millions of Dollars") 
@@ -2654,9 +2832,11 @@ rev_long %>%
     theme_bw() +
       labs(title = "Revenues for FY2022")+
     xlab("Revenue Categories") +
-  ylab("Millions of Dollars") 
+  ylab("Millions of Dollars")
+```
 
 
+```{r include = FALSE}
 # function for calculating the CAGR
 calc_cagr <- function(df, n) {
   df <- exp_long %>%
@@ -2704,9 +2884,6 @@ CAGR_expenditures_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10,
   select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
   rename("Expenditure Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"24 Year CAGR" = cagr_24 )
 
-CAGR_expenditures_summary %>% 
-  kbl(caption = "CAGR Calculations for Expenditure Categories") %>% 
-  kable_styling(bootstrap_options = c("striped"))
 
 calc_cagr <- function(df, n) {
   df <- rev_long %>%
@@ -2746,10 +2923,6 @@ CAGR_revenue_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr
   select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
   rename("Revenue Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"24 Year CAGR" = cagr_24 )
 
-CAGR_revenue_summary %>% 
-  kbl(caption = "CAGR Calculations for Revenue Sources") %>% 
-  kable_styling(bootstrap_options = c("striped"))
-
 rm(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_24)
 
 
@@ -2781,12 +2954,7 @@ expenditure_change <- exp_long %>%
   select(-c(Dollars_2022, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`)) %>%
   rename( "Compound Annual Growth, 1998-2022*" = `24 Year CAGR`, 
           "FY2022 Expenditure Category" = Category_name )
-
-expenditure_change %>% 
-  kbl(caption = "Yearly Change in Expenditures") %>% 
-  kable_styling(bootstrap_options = c("striped"))
            
-
 
 dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long, 
                       `Table 1` = expenditure_change, `Table 2` = revenue_change,
@@ -2799,39 +2967,36 @@ write.xlsx(dataset_names, file = 'summary_file_droppeCOVIDrevs_FY2022.xlsx')
 
 # Forecasting attempt
 
+
 ```{r}
 #### Revenues
 
-year_totals <- year_totals %>% 
+year_totals2 <- year_totals2 %>% 
   arrange(Year)
 
 #ts_rev <- year_totals %>% select(Year, Revenue ) %>% arrange(Year)
 
-tsrev <- ts(year_totals$Revenue, start ="1998", frequency = 1) # yearly data
+tsrev <- ts(year_totals2$Revenue, start ="1998", frequency = 1) # yearly data
 
-start(tsrev) # 1998, January
-end(tsrev)  ## 2022 
-summary(tsrev)
-plot(tsrev)
-abline(reg=lm(tsrev~time(tsrev)))
+# start(tsrev) # 1998, January
+# end(tsrev)  ## 2022 
+# summary(tsrev)
+# plot(tsrev)
+# abline(reg=lm(tsrev~time(tsrev)))
 
 
 #### ARIMAs
 mymodel <- auto.arima(tsrev, seasonal = FALSE)
 mymodel # ARIMA (0, 1, 0) with drift
 myforecastrev <- forecast(mymodel, h = 20)
-plot(myforecastrev,  xlab ="", 
-     ylab ="Total Revenue",
-     main ="Chicago Revenue")
+#plot(myforecastrev,  xlab ="", ylab ="Total Revenue", main ="Chicago Revenue")
 
-tsexp <- ts(year_totals$Expenditures, start = "1998", frequency = 1)
+tsexp <- ts(year_totals2$Expenditures, start = "1998", frequency = 1)
 model_exp<- auto.arima(tsexp, seasonal = FALSE)
 model_exp # ARIMA (0,1,1) with drift
 
 forecast_exp <- forecast(model_exp, h = 20) 
-plot(forecast_exp, xlab ="", 
-     ylab ="Total Expenditures",
-     main ="Chicago Expenditures")
+#plot(forecast_exp, xlab ="",  ylab ="Total Expenditures", main ="Chicago Expenditures")
 
 p <- forecast(model_exp,  h = 20) %>% 
   autoplot() +
@@ -2876,19 +3041,29 @@ annotation <- data.frame(
 
 q+ geom_label(data = annotation, aes(x=x, y=y, label=label), size = 3) +
   labs(caption = "after dropping federal covid dollars")
+
+autoplot(tsexp) +
+  #geom_line(tsexp)+
+  #geom_line(aes(model_rev))+
+  autolayer(forecast_rev, series = "Revenue") +
+  autolayer(forecast_exp, series = "Expenditure)", alpha = 0.5) +
+  geom_line(year_totals, mapping= aes(x = Year, y = Revenue))  + guides(colour = guide_legend("Forecast")) + 
+  labs(title = "Forecasted Revenue and Expenditures", caption = "Revenue without State and Local CURE Dollars")
 ```
 
-revenue forecasting using precovid trends:
+Revenue forecasting using precovid trends:
 
 ```{r}
 # revenue using precovid trends
-tsrev <- ts(year_totals$Revenue, start ="1998", end = "2021", frequency = 1) # yearly data
+tsrev <- ts(year_totals$Revenue, start ="1998", end = "2020", frequency = 1) # yearly data
+
+tsexp2019 <- ts(year_totals$Expenditures, start ="1998", end = "2020", frequency = 1) # yearly data
 
 #### revenue chart
 model_rev <- auto.arima(tsrev, seasonal = FALSE)
 forecast_rev <- forecast(model_rev, h = 23)
 
-c <- forecast(forecast_rev,  h = 20) %>% 
+c <- forecast(forecast_rev,  h = 22) %>% 
   autoplot() +
     ylab("Dollars (Millions)") +
   xlab("Year") +
@@ -2906,24 +3081,25 @@ annotation <- data.frame(
 
 c+ geom_label(data = annotation, aes(x=x, y=y, label=label), size = 3) + labs(title= "Revenue Forecasted using Pre-Covid Data", subtitle = "Own Source and Federal Revenues Combined")
 
-autoplot(tsexp) +
+autoplot(tsexp2019) +
   #geom_line(tsexp)+
   #geom_line(aes(model_rev))+
   autolayer(forecast_rev, series = "Revenue") +
   autolayer(forecast_exp, series = "Expenditure)", alpha = 0.5) +
   geom_line(year_totals, mapping= aes(x = Year, y = Revenue))  + guides(colour = guide_legend("Forecast")) + 
-  labs(title = "Forecasted Revenue and Expenditures", caption = "dropped federal revenue from Covid response")
+  labs(title = "Forecasted Revenue and Expenditures", caption = "Using Pre-Covid revenue data (ending in FY2020)")
+
+
 ```
 
 ### Federal Revenue
 
 
-__Note:__ These are graphed AFTER dropping the COVID response federal dollars. 
-
 
 ```{r}
 fed_rev <- ff_rev %>% select(fy, rev_57, rev_58, rev_59) %>%
   mutate(fed_total = rev_57+rev_58+rev_59)
+
 fed_ts57 <- ts(fed_rev$rev_57, start ="1998", frequency = 1) # yearly data
 
 model_fed <- auto.arima(fed_ts57, seasonal = FALSE)
@@ -2978,13 +3154,13 @@ fedtotal <- forecast(forecast_fed,  h = 20) %>%
   autoplot() +
     ylab("Nominal Dollars (Millions)") +
   xlab("Year") +
-  ggtitle("Forecasted Federal Revenue", subtitle = "Sum of Transportation, Medicaid, and Other Federal Tranfers") +
+  ggtitle("Forecasted Federal Revenue WITHOUT Federal COVID Dollars", subtitle = "Sum of Transportation, Medicaid, and Other Federal Tranfers") +
   theme_classic() +
   scale_y_continuous(labels = dollar ) 
 
 fedtotal
 
-fed_tstotal <- ts(fed_rev$fed_total, start ="1998", end = "2019", frequency = 1) # yearly data
+fed_tstotal <- ts(fed_rev$fed_total, start ="1998", end = "2020", frequency = 1) # yearly data
 
 model_fed <- auto.arima(fed_tstotal, seasonal = FALSE)
 forecast_fed <- forecast(model_fed, h = 23)
