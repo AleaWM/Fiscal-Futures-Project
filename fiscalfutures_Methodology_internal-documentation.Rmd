@@ -1,5 +1,5 @@
 ---
-title: "FY2022 Analysis - Methodology for Fiscal Futures "
+title: "FY2022 Analysis - Methodology for Fiscal Futures"
 author: "Alea Wilbur"
 date: "December 19 2022"
 output:
@@ -829,7 +829,7 @@ all_debt %>% ggplot() +
 all_debt %>% ggplot() + 
   geom_line(aes(x=fy, y=principal/1000000, color = "Principal"))+ 
   geom_line(aes(x=fy, y=interest/1000000, color = "Interest"))+
-  geom_line(aes(x=fy, y = CapitalProjects / 1000000, color = "Capital Projects"))+
+  geom_line(aes(x=fy, y = CapitalProjects / 1000000, color = "Capital Projects Debt Service"))+
   geom_line(data = tollwaydebt, aes( x=fy, y=sum/1000000, color = "Tollway Debt Service"))+
   labs(y = "Debt ($Millions)", title = "Short term borrowing and GO Bonds",
        subtitle = "Principal and Interest payments", caption = "Capital projects does not include Illinois tollway debt service.") 
@@ -1190,6 +1190,8 @@ transfers_drop <- exp_temp %>% filter(
 
 exp_temp <- anti_join(exp_temp, transfers_drop)
 exp_temp
+
+transfers_drop %>% filter(fy>2019 & object == 1993) %>% group_by(obj_seq_type) %>% summarize(sum = sum(expenditure)) %>% arrange(-sum)
 ```
 
 
@@ -1489,7 +1491,7 @@ exp_temp <- exp_temp %>%
   
   
   mutate(group = case_when(
-    # agency=="684" | agency=="691"  ~ as.character(agency), # moved under higher reducation in next line. 11/28/2022 AWM
+    # agency=="684" | agency=="691"  ~ as.character(agency), # moved under higher education in next line. 11/28/2022 AWM
     
     agency=="692" | agency=="695" | agency == "684" |agency == "691" | (agency>"599" & agency<"677") ~ "960", # higher education
     
@@ -1607,7 +1609,7 @@ rev_temp <- rev_temp %>%
 ### Federal to State Transfers
 
 ```{r create-rev-federal-transfers}
-rev_temp <- rev_temp %>% filter(in_ff==1)
+#rev_temp <- rev_temp %>% filter(in_ff==1)
 
 rev_temp <- rev_temp %>% 
   mutate(
@@ -1638,13 +1640,33 @@ Looking at Federal Revenue:
 
 All revenue sources within "Federal - Other" source.
 ```{r}
-rev_temp %>% filter(rev_type == "57" & fy == 2022) %>% group_by(source_name_AWM) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
+rev_temp %>% filter(rev_type == "57" & fy >2018) %>% group_by(fund_name, source_name_AWM,  fy) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts) %>% pivot_wider(names_from = fy, values_from = receipts)
 
-rev_temp %>% filter(rev_type == "57" & fy == 2022 & source_name_AWM == "FEDERAL STIMULUS PACKAGE") %>% group_by(fund_name) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
+fed_rev_compare <- rev_temp %>% filter((rev_type == "57" | rev_type == "58" | rev_type == "59") & (fy == 2022 | fy==2021 | fy==2020 | fy == 2019)) %>%  arrange(-receipts)
+write_csv(fed_rev_compare, "comparefedrev.csv")
 
-rev_temp %>% filter(rev_type == "57" & fy > 2018 & source_name_AWM == "FEDERAL STIMULUS PACKAGE") %>% group_by(fund_name, fy) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
 
-exp_temp %>% filter(fy == 2022 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE")) %>% group_by(org_name, agency_name, wh_approp_name, fund_name) %>% summarize(sum=sum(expenditure)) %>% arrange(-sum)
+rev_temp %>% filter(source_name_AWM == "FEDERAL STIMULUS PACKAGE") %>% group_by(fy, fund_name) %>% summarize(receipts =sum(receipts)) %>% arrange(-fy)
+
+rev_temp %>% filter(fy > 2018 & source_name_AWM == "FEDERAL STIMULUS PACKAGE") %>% group_by(fund_name, fy) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
+
+rev_temp %>% filter(rev_type == "57" & fy > 2018 & fund_name == "SBE FEDERAL DEPT OF EDUCATION") %>% group_by(source_name_AWM , fund_name, fy) %>% summarize(receipts =sum(receipts)) %>% arrange(-receipts)
+
+exp_temp %>% filter(fy >2019 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE" | fund_name == "SBE FEDERAL DEPT OF EDUCATION" | fund_name == "DISASTER RESPONSE AND RECOVERY" | fund_name == "ESSENTIAL GOVT SERV SUPPORT" )) %>% group_by(fy, agency_name, wh_approp_name, fund_name) %>% 
+  summarize(sum=sum(expenditure),
+            appropriated = sum(appn_net_xfer)) %>% 
+  arrange(-appropriated)
+
+exp_temp %>% filter(fy >2019 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE" | fund_name == "SBE FEDERAL DEPT OF EDUCATION" | fund_name == "DISASTER RESPONSE AND RECOVERY" | fund_name == "ESSENTIAL GOVT SERV SUPPORT" )) %>% group_by(fy, wh_approp_name, fund_name) %>% 
+  summarize(sum=sum(expenditure),
+            appropriated = sum(appn_net_xfer)) %>% 
+  arrange(-appropriated)
+
+
+exp_temp %>% filter(fy >2019 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE" | fund_name == "SBE FEDERAL DEPT OF EDUCATION" | fund_name == "DISASTER RESPONSE AND RECOVERY" | fund_name == "ESSENTIAL GOVT SERV SUPPORT" )) %>% group_by(fund_name, fy, agency_name) %>% 
+  summarize(sum=sum(expenditure),
+            appropriated = sum(appn_net_xfer)) %>% 
+  arrange(-appropriated)
 
 exp_temp %>% filter(fy == 2022 & (fund_name == "STATE CURE" | fund_name == "LOCAL CURE")) %>% group_by(org_name, agency_name, object, wh_approp_name, fund_name) %>% summarize(sum=sum(expenditure)) %>% arrange(-sum)
 
@@ -2233,7 +2255,7 @@ annotation <- data.frame(
   label = c("Expenditures","Revenue", "Fiscal Gap")
 )
 
-
+# with trend lines:
 year_totals %>%  
   ggplot() +
   # geom_smooth adds regression line, graphed first so it appears behind line graph
@@ -2252,29 +2274,72 @@ year_totals %>%
   ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
 
 
+# without trend lines:
+year_totals %>%  
+  ggplot() +
+  # line graph of revenue and expenditures
+  geom_line(aes(x = Year, y = Revenue), color = "Black", size=1) +
+  geom_line(aes(x = Year, y = Expenditures), color = "red", size=1) +
+      theme_bw() +
+  scale_y_continuous(labels = comma)+
+  xlab("Year") + 
+  ylab("Millions of Dollars")  +
+  ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
+
+
 
 fiscal_gap <- year_totals %>%  
   ggplot() +
   geom_hline(yintercept = 0) +
   # geom_smooth adds regression line, graphed first so it appears behind line graph
-  geom_smooth(aes(x = Year, y = Revenue), color = "rosybrown2", alpha = 0.7, method = "lm", se = FALSE) + 
-  geom_smooth(aes(x = Year, y = Expenditures), color = "gray", method = "lm", se = FALSE) +
+  geom_smooth(aes(x = Year, y = Revenue), color = "gray", alpha = 0.7, method = "lm", se = FALSE) + 
+  #  scale_linetype_manual(values="dashed")+
+  geom_smooth(aes(x = Year, y = Expenditures), color ="rosybrown2", linetype = "dashed", method = "lm", se = FALSE, alpha = 0.7) +
 
-  
   # line graph of revenue and expenditures
   geom_line(aes(x = Year, y = Revenue), color = "Black", size=1) +
-  geom_line(aes(x = Year, y = Expenditures), color = "red", size=1) +
+  geom_line(aes(x = Year, y = Expenditures, linetype = "dashed"), color = "red", lwd=1) +
   geom_line(aes(x = Year, y = `Fiscal Gap`), color = "gray") +
   
   geom_text(data = annotation, aes(x=x, y=y, label=label))+
   # labels
     theme_bw() +
+    theme(legend.position = "none")+
+
+    scale_linetype_manual(values = c("dashed", "dashed")) +
+
   scale_y_continuous(labels = comma)+
   xlab("Year") + 
   ylab("Millions of Dollars")  +
   ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
 
 fiscal_gap
+
+
+
+annotation_billions <- data.frame(
+  x = c(2004, 2017, 2019),
+  y = c(60, 50, 5),  
+  label = c("Expenditures","Revenue", "Fiscal Gap")
+)
+fiscal_gap2 <- year_totals %>%  
+  ggplot() +
+  geom_hline(yintercept = 0) +
+  geom_line(aes(x = Year, y = Revenue/1000), color = "Black", lwd=1) +
+  geom_line(aes(x = Year, y = Expenditures/1000, linetype = "dashed"), color = "red", lwd=1) +
+  geom_line(aes(x = Year, y = `Fiscal Gap`/1000), color = "gray") +
+  
+  geom_text(data = annotation, aes(x=x, y=y/1000, label=label))+
+    theme_bw() +
+  theme(legend.position = "none")+
+    scale_linetype_manual(values = c("dashed", "dashed")) +
+
+  scale_y_continuous(labels = comma)+
+  xlab("Year") + 
+  ylab("Billions of Dollars")  +
+  ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
+
+fiscal_gap2
 
 
 ```
@@ -2336,13 +2401,15 @@ rev_long %>%
 
 
 ```{r eval = FALSE, include = FALSE}
+# Both graphs include Total revenue and expenditures as a bar on the top. 
+
 exp_long %>%
   filter(Year == 2022) %>%
   #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
  # select(-c(Year, `Total Expenditures`)) %>%
   arrange(desc(`Dollars`)) %>%
   ggplot() + 
-  geom_col(aes(x = fct_reorder(Category, `Dollars`), y = `Dollars`))+ 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
   coord_flip() +
     labs(title = "Expenditures for FY2022") +
     xlab("Expenditure Categories") +
@@ -2355,7 +2422,7 @@ rev_long %>%
  # select(-c(Year, `Total Expenditures`)) %>%
   arrange(desc(`Dollars`)) %>%
   ggplot() + 
-  geom_col(aes(x = fct_reorder(Category, `Dollars`), y = `Dollars`))+ 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
   coord_flip() +
     xlab("Revenue Categories") +
   ylab("Millions of Dollars") +
@@ -2500,7 +2567,7 @@ exp_long %>%
 
 
 
-### Top 3 Reveues
+### Top 3 Revenues
 
 ```{r}
 
@@ -2516,7 +2583,10 @@ top3 <- rev_long  %>%
   geom_line(aes(x=Year, y=Dollars, color = Category_name)) + 
   geom_text(data = annotation, aes(x=x, y=y, label=label))+
     theme_bw() +
+  
   scale_y_continuous(labels = comma)+
+  scale_linetype_manual(values = c("dotted", "dashed", "solid")) +
+
   theme(legend.position = "none")+
   labs(title = "Top 3 Own Source Revenues", 
        subtitle = "Individual Income Taxes, Sales Tax, and Corporate income taxes",
@@ -2532,7 +2602,9 @@ top3
 ```{r}
 
 ownsource_rev <- rev_long %>%
-  filter(Category != "57" | Category != "58" | Category != "59") %>% group_by(Year) %>% summarize(Dollars = sum(Dollars))
+  filter(!Category %in% c("57", "58", "59")) %>%
+  group_by(Year) %>% 
+  summarize(Dollars = sum(Dollars))
 
 # ownsource_rev %>% 
 #   ggplot()+geom_line(aes(x=Year, y=Dollars)) + 
@@ -2544,7 +2616,7 @@ fed_rev <- ff_rev %>% select(fy, rev_57, rev_58, rev_59) %>%
 
 annotation <- data.frame(
   x = c(2010, 2010),
-  y = c(65000, 25000),  
+  y = c(50000, 25000),  
   label = c("Own Source Revenue", "Federal Transfers")
 )
 
@@ -2765,7 +2837,7 @@ The Fiscal Futures model focuses on sustainable revenue sources. To understand o
 - Provider Relief Fund
 - Coronavirus Relief Fund (CRF)
 - Consolidated Appropriations Act
-- Families First Cornovirus Response Act
+- Families First Coronavirus Response Act
 - Paycheck Protection Program and Health Care Enhancement Act  
 
 
@@ -2860,32 +2932,92 @@ year_totals2 <- aggregated_totals_long %>%
 
 year_totals2
 
-annotation <- data.frame(
+
+annotation_billions <- data.frame(
   x = c(2004, 2017, 2019),
-  y = c(60000, 50000, 10000),  
+  y = c(60, 50, 10),  
   label = c("Expenditures","Revenue", "Fiscal Gap")
 )
+fiscal_gap1 <- year_totals %>%
+  ggplot() +
+  geom_hline(yintercept = 0) +
+  geom_line(aes(x = Year, y = Revenue/1000), color = "Black", lwd=1) +
+  geom_line(aes(x = Year, y = Expenditures/1000, linetype = "dashed"), color = "red", lwd=1) +
+  geom_line(aes(x = Year, y = `Fiscal Gap`/1000), color = "gray") +
 
-fiscal_gap_droppedCURE<-year_totals2 %>%  
+  geom_text(data = annotation_billions, aes(x=x, y=y, label=label))+
+    theme_bw() +
+  theme(legend.position = "none", #axis.text.y = element_blank(),  
+        #axis.ticks.y = element_blank(),
+                                    axis.title.y = element_blank())+
+    scale_linetype_manual(values = c("dashed", "dashed")) +
+  scale_y_continuous(limits = c(-20, 120), labels = comma)+
+    scale_x_continuous(limits=c(1998,2022))
+
+fiscal_gap1
+
+
+annotation_billions <- data.frame(
+  x = c(2004, 2017, 2019),
+  y = c(60, 50, 10),  
+  label = c("Expenditures", "Revenue", "Fiscal Gap")
+)
+
+fiscal_gap2 <- year_totals2 %>%  
   ggplot() +
   geom_hline(yintercept=0)+
-  # geom_smooth adds regression line, graphed first so it appears behind line graph
-  geom_smooth(aes(x = Year, y = Revenue), color = "gray", method = "lm", se = FALSE) + 
-  geom_smooth(aes(x = Year, y = Expenditures), color = "rosybrown2", method = "lm", se = FALSE) +
   
-  # line graph of revenue and expenditures
-  geom_line(aes(x = Year, y = Revenue), color = "black", size=1) +
-  geom_line(aes(x = Year, y = Expenditures), color = "red", size=1) +
-  geom_line(aes(x=Year, y = `Fiscal Gap`), color="gray") +
+    geom_hline(yintercept = 0) +
+  geom_line(aes(x = Year, y = Revenue/1000), color = "Black", lwd=1) +
+  geom_line(aes(x = Year, y = Expenditures/1000, linetype = "dashed"), color = "red", lwd=1) +
+  geom_line(aes(x = Year, y = `Fiscal Gap`/1000), color = "gray") +
   
-  geom_text(data= annotation, aes(x=x, y = y, label=label))+
-  
-  # labels
+  geom_text(data = annotation_billions, aes(x=x, y=y, label=label))+
     theme_bw() +
-  scale_y_continuous(labels = comma)+
-  xlab("Year") + 
-  ylab("Millions of Dollars")  +
-  ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
+  theme(legend.position = "none", # axis.text.y = element_blank(),
+                                   # axis.ticks.y = element_blank(),
+                                    axis.title.y = element_blank() )+
+    scale_linetype_manual(values = c("dashed", "dashed"))  +
+  scale_y_continuous(limits=c(-20,120), labels = comma) +
+    scale_x_continuous(limits=c(1998,2022))
+
+
+fiscal_gap2
+
+fiscal_gap_droppedCURE <- year_totals2 %>%  
+  ggplot() +
+  geom_hline(yintercept=0)+
+  
+    geom_hline(yintercept = 0) +
+  geom_line(aes(x = Year, y = Revenue/1000), color = "Black", lwd=1) +
+  geom_line(aes(x = Year, y = Expenditures/1000, linetype = "dashed"), color = "red", lwd=1) +
+  geom_line(aes(x = Year, y = `Fiscal Gap`/1000), color = "gray") +
+  
+  geom_text(data = annotation_billions, aes(x=x, y=y, label=label))+
+    theme_bw() +
+  theme(legend.position = "none",# axis.text.y = element_blank(),
+                                    #axis.ticks.y = element_blank(),
+                                    axis.title.y = element_blank() )+
+    scale_linetype_manual(values = c("dashed", "dashed")) +
+  scale_y_continuous(limits=c(-20,120), labels = comma)+
+    scale_x_continuous(limits=c(1998,2022))
+  # # geom_smooth adds regression line, graphed first so it appears behind line graph
+  # geom_smooth(aes(x = Year, y = Revenue), color = "gray", method = "lm", se = FALSE) + 
+  # geom_smooth(aes(x = Year, y = Expenditures), color = "rosybrown2", method = "lm", se = FALSE) +
+  # 
+  # # line graph of revenue and expenditures
+  # geom_line(aes(x = Year, y = Revenue), color = "black", size=1) +
+  # geom_line(aes(x = Year, y = Expenditures), color = "red", size=1) +
+  # geom_line(aes(x=Year, y = `Fiscal Gap`), color="gray") +
+  # 
+  # geom_text(data= annotation, aes(x=x, y = y, label=label))+
+  # 
+  # # labels
+  #   theme_bw() +
+  # scale_y_continuous(labels = comma)+
+  # xlab("Year") + 
+  # ylab("Millions of Dollars")  +
+  # ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
 
 fiscal_gap_droppedCURE
 ```
@@ -2895,7 +3027,10 @@ Compare with and without federal COVID dollars:
 ```{r}
 library(gridExtra)
 
-cowplot::plot_grid(fiscal_gap, fiscal_gap_droppedCURE)
+cowplot::plot_grid(fiscal_gap1,
+                   fiscal_gap_droppedCURE, nrow=1)
+
+grid.arrange(fiscal_gap1, fiscal_gap_droppedCURE, nrow=1)
 ```
 
 
