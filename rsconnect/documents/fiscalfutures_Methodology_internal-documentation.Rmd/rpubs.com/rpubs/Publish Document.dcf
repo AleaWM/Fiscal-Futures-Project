@@ -1,0 +1,11 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/984407/8d0d65f56bcc45fb87624c0b9e054ffd
+bundleId: https://api.rpubs.com/api/v1/document/984407/8d0d65f56bcc45fb87624c0b9e054ffd
+url: http://rpubs.com/sleepyalea/984407
+when: 1672025342.68861
+lastSyncTime: 1672025342.68861

@@ -1,0 +1,1703 @@
+---
+title: "FY2022 Analysis - Methodology for Fiscal Futures "
+author: "Alea Wilbur"
+date: "November 2022"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+    df_print: paged
+---
+
+
+```{r warning = FALSE, message=FALSE}
+
+library(tidyverse)
+library(haven)
+library(formatR)
+library(lubridate)
+library(smooth)
+library(forecast)
+library(scales)
+library(kableExtra)
+library(ggplot2)
+library(readxl)
+library(tidyverse)
+library(data.table)
+library(quantmod)
+library(geofacet)
+library(janitor)
+
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
+```
+
+
+# Modify Expenditure File
+
+### Tax refunds 
+
+Aggregate expenditures: Save tax refunds as negative revenue. Code refunds to match the rev_type codes (02=income taxes, 03 = corporate income taxes, 06=sales tax, 09=motor fuel tax, 24=insurance taxes and fees, 35 = all other tax refunds).
+
+
+```{r tax-refunds}
+## negative revenue becomes tax refunds
+
+tax_refund_long <- exp_temp %>%           # fund != "0401" # removes State Trust Funds
+  filter(fund != "0401" & (object=="9910"|object=="9921"|object=="9923"|object=="9925")) %>%
+  # keeps these objects which represent revenue, insurance, treasurer,and financial and professional reg tax refunds
+  mutate(refund = case_when(
+    fund=="0278" & sequence == "00" ~ "02", # for income tax refund
+    fund=="0278" & sequence == "01" ~ "03", # tax administration and enforcement and tax operations become corporate income tax refund
+     fund == "0278" & sequence == "02" ~ "02",
+    object=="9921" ~ "21",                # inheritance tax and estate tax refund appropriation
+    object=="9923" ~ "09",                # motor fuel tax refunds
+    obj_seq_type == "99250055" ~ "06",    # sales tax refund
+    fund=="0378" & object=="9925" ~ "24", # insurance privilege tax refund
+    fund=="0001" & object=="9925" ~ "35", # all other taxes
+      T ~ "CHECK"))                       # if none of the items above apply to the observations, then code them as CHECK 
+
+    
+exp_temp <- left_join(exp_temp, tax_refund_long) %>%
+  mutate(refund = ifelse(is.na(refund),"not refund", as.character(refund)))
+
+tax_refund <- tax_refund_long %>% 
+  group_by(refund, fy)%>%
+  summarize(refund_amount = sum(expenditure, na.rm = TRUE)/1000000) %>%
+  pivot_wider(names_from = refund, values_from = refund_amount, names_prefix = "ref_") %>%
+  mutate_all(~replace_na(.,0)) %>%
+  arrange(fy)
+
+tax_refund %>% pivot_longer( ref_02:ref_35, names_to = "Refund Type", values_to = "Amount") %>%
+  ggplot()+
+  geom_line(aes(x=fy,y=Amount, group = `Refund Type`, color = `Refund Type`))+
+  labs(title = "Refund Types", caption = "Refunds are excluded from Expenditure totals and instead subtracted from Revenue totals") + 
+  labs(title = "Tax refunds", 
+       caption = "Rev_type codes: 02=income taxes, 03=corporate income taxes, 06=sales tax, 09=motor fuel tax, 
+       24=insurance taxes and fees, 35 = all other tax refunds." )
+
+# remove the items we recoded in tax_refund_long
+exp_temp <- exp_temp %>% filter(refund == "not refund")
+
+
+```
+
+`tax_refund` amounts are removed from expenditure totals and instead subtracted from revenue totals (since they were tax refunds).
+
+
+### Pension Expenditures
+
+
+
+> 300 million pension stabilization payment from fund 0319, object == 1900 for lump sums and other purposes. This is a type of pension contribution, right?
+
+State payments to the following pension systems:  
+
+• Teachers Retirement System (TRS)  
+  - New POB bond in 2019: Accelerated Bond Fund paid benefits in advance as lump sum
+• State Employee Retirement System (SERS)  
+• State University Retirement System (SURS)  
+• Judges Retirement System (JRS)  
+• General Assembly Retirement System (GARS)  
+
+
+Employer contributions for pensions are excluded from analysis to avoid double counting the cost of pensions. Expenditures with object 4430 for pensions, benefits, and annuities  appears in items from funds 0473, 0477, 0479, 0481, (TRS, JRS, SERS, GARS), 0755, 0786, 0787, 0788, 0789 (deferred compensation plan, GAR excess benefit, JRS excess benefit, SER excess benefit, TRS excess benefit) are NOT included in the analysis. All are coded with in_ff=0 in the fund_ab_in.xlsx file of funds.
+- Some expenditures with object=4430 are paid for with Pension obligation bond funds (fund == 0825). In past years, some POB funded expenditures were moved to revenue side. We are no longer doing this as of FY2021. 
+
+State pension contributions are largely captured with object=4431. **(State payments into pension fund)**    
+  - includes 8 billion payment in 2004 that creates large peak in expenditure graphs   
+  
+Other items to be aware of that may contain useful pension context:   
+- object = 1298 is for Purchase of Investments and is excluded from analysis except for a couple exceptions during 2010 and 2011.  
+- object = 1900 for pension stabilization under lump sums  
+- object = 1167 and 1168 is for Employer pension contributions but is not used as of FY2022.  
+ 
+```{r pension-check}
+# check what is being included in pensions
+
+pension_check <- exp_temp %>% 
+  mutate(pension = case_when( 
+    (object=="4430") ~ "Object 4430 - Benefits Paid; DROPPED", # pensions, annuities, benefits
+    (object=="4431") ~ "Object 4431 - State Pension Contributions", # 4431 = state payments into pension fund
+        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ "IOC Retirement Object Categories; DROPPED",
+    # objects 1159 to 1166 are all considered Retirement by Comptroller 
+    
+            TRUE ~ "0")) %>%  # All other observations coded as 0 for non-pension items
+  
+  # recodes specific instances of code anomalies from past years:
+  mutate(pension = case_when(
+        # judges retirement "Purchase of investments" in 2010 and 2011
+    (object=="1298" & 
+       #(fy==2010 | fy==2011) & 
+       (fund=="0477" | fund=="0479" | fund=="0481")) ~ "Purchase of Investments; DROPPED", 
+    
+      # pension stabilization fund in 2022 
+  object == "1900" & fund == "0319" ~ "Fund 0319-Pension Stabilization", 
+    TRUE ~ as.character(pension)) ) %>% 
+  filter(pension != "0" )
+
+pension_check %>% group_by(fy, pension) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>%
+  ggplot(aes(x=fy, y = expenditure, color = pension)) + 
+  geom_line() + 
+  labs (title = "Pension Fund Payments In and Retirement Benefits Out", 
+  caption = "Shows items from objects 4430 as employer 
+  pension expenditures (retirement benefits paid). 
+  Object = 4431 includes state payments INTO pension Fund.")
+
+pension_check2 <- exp_temp %>% 
+  mutate(pension = case_when( 
+     #   (object=="4431" | (object>"1159" & object<"1166") ) ~ 1, 
+       (object=="4431"  ) ~ 1, # 4431 = payments into pension fund
+        (obj_seq_type > "11590000" & obj_seq_type < "11660000")  ~ 2,
+
+    # objects 1159 to 1166 are all considered Retirement by Comptroller 
+    # object == 1167 also appears to be Other Retirement but isn't used yet
+            TRUE ~ 0)) %>% 
+  
+  mutate(pension = case_when(     # objects were weird for 2010 and 2011
+   (object=="4431" & fund=="0473")  ~ 3, # teachers retirement system,  
+  #  obj_seq_type == "44310055" ~ 3, # teachers retirement system in 2010 and 2011. 
+   (object=="1298" & 
+      #(fy==2010 | fy==2011) &  # for the two weird years based on past code
+      (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, # judges retirement 
+   # obj_seq_type == "12980055" ~ 3, # judge retirement contributions during 2010 and 2011
+  object == "1900" & fund == "0319" ~ 5, # pension stabilization fund in 2022 
+    TRUE ~ pension)) %>% 
+  filter(pension > 0 )
+
+#write_csv(pension_check, "pension_checkfy22v3.csv")
+
+## taking care of Pension Obligation Bond proceeds
+
+pension_check2 <- pension_check2 %>% 
+  # change object for 2010 and 2011, retirement expenditures were bond proceeds
+  mutate(object = ifelse((pension == 3 & in_ff == "0"), "4431", as.character(object))) %>% # changes weird teacher & judge retirement system  pensions object to normal pension object 4431
+  mutate(pension =  ifelse(pension == 1 & in_ff == "0", 2, pension)) %>% # coded as 2 if it was supposed to be excluded due to being bond proceeds ?
+  mutate(in_ff = ifelse((pension ==2 | pension ==3), "1", as.character(in_ff)))
+
+
+# create file with all pension items to find any mistakes
+#pension_check %>% write_csv("all_pensions.csv")
+
+table(pension_check2$pension)
+
+
+```
+
+object==4431 + employee contributions rev should roughly equal object==4430 benefits being paid.
+
+Modify exp_temp and move all state pension contributions to their own group (901):
+```{r pensions}
+exp_temp <-  exp_temp %>% 
+  arrange(fund) %>%
+  mutate(pension = case_when( 
+    
+  # objects were weird for 2010 and 2011 for teacher and judge retirement system
+     # (object=="4431" & fund=="0473") ~ 3, # teachers retirement system, 
+ # Was this: (object=="4431" & fund=="0473" &  (fy==2010 | fy==2011)) ~ 3, # teachers retirement system, 
+   (object=="4431") ~ 1, # 4431 = easy to find pension payments INTO fund
+   
+  (object>"1159" & object<"1166") & fund != "0183" & fund != "0193"   ~ 2, 
+   # objects 1159 to 1166 are all considered Retirement by Comptroller, OUT 
+  # object == 1167 also appears to be Other Retirement but isn't used yet
+ 
+  (object=="1298" &  # Purchase of Investments
+     (fy==2010 | fy==2011) & 
+     (fund=="0477" | fund=="0479" | fund=="0481")) ~ 3, #judges retirement OUT of fund
+ 
+
+ fund == "0319" ~ 4, #pension stabilization fund IN?
+                                        TRUE ~ 0) )
+
+table(exp_temp$pension) # same number of total observations > 0 as pension_check
+
+
+```
+
+
+
+Description of Pension Obligation Acceleration Bond at this [link](https://www.ilga.gov/legislation/ilcs/documents/003003300K7.7.htm)
+
+```{r pensions-POB}
+
+# special accounting of pension obligation bond (POB)-funded contributions to JRS, SERS, GARS, TRS 
+
+exp_temp <- exp_temp %>% 
+  # change object for 2010 and 2011, retirement expenditures were bond proceeds
+  mutate(object = ifelse((pension >0 & in_ff == "0"), "4431", object)) %>% 
+  # changes weird teacher & judge retirement system  pensions object to normal pension object 4431
+  mutate(pension =  ifelse(pension >0 & in_ff == "0", 6, pension)) %>% # coded as 6 if it was supposed to be excluded. 
+  mutate(in_ff = ifelse(pension>0, "1", in_ff))
+
+table(exp_temp$pension) 
+
+
+# all other pensions objects  codes get agency code 901 for State Pension Contributions
+exp_temp <- exp_temp %>% 
+  mutate(agency = ifelse(pension>0, "901", as.character(agency)),
+         agency_name = ifelse(agency == "901", "State Pension Contributions", as.character(agency_name)))
+
+exp_temp %>% 
+ filter(pension > 0) %>%  
+  mutate(pension = as.factor(pension)) %>%
+  group_by(fy, pension) %>% 
+  summarize(expenditure = sum(expenditure, na.rm=TRUE)) %>%
+  ggplot(aes(x=fy, y=expenditure, color = pension)) +
+  geom_line() + 
+  labs (title = "Pension Expenditures", 
+  caption = "Includes objects 1160-1165, 1298, 1900, and 4431 as pension expenditures.
+        Object = 4431 includes payments INTO pension Fund.")
+```
+
+
+
+### Drop Interfund transfers
+
+- object == 1993 is for interfund cash transfers  
+- agency == 799 is for statutory transfers  
+- object == 1298 is for purchase of investments and is not spending EXCEPT for pensions in 2010 and 2011 (and were recoded already to object == "4431"). Over 168,000 observations remain.  
+
+```{r drop-transfers}
+
+transfers_drop <- exp_temp %>% filter(
+  agency == "799" | # statutory transfers
+           object == "1993" |  # interfund cash transfers
+           object == "1298") # purchase of investments
+
+exp_temp <- anti_join(exp_temp, transfers_drop)
+
+#transfers_drop %>% group_by(fy) %>% summarize(expenditure = sum(expenditure)) %>% ggplot(aes(x=fy, y=expenditure)) + geom_line() + labs(title = "Dropped Transfers", caption = "Includes statutory transfers, interfund cash transfers, and purchase of investments")
+```
+
+
+### State employee healthcare costs
+
+
+State Employee Health Care = Sum of expenditures for "health care coverage as elected by members per state employees group insurance act." The payments are made from the Health Insurance Reserve Fund. We subtract the share that came from employee contributions. Employee contributions are not considered a revenue source or an expenditure in our analysis.
+
+
+Fund = 0457 is "Group insurance premium", in_ff = 1  
+Fund = 0193 is "Local govt health insurance reserve", in=ff = 0  
+fund = 0477 is "Community College Health Insurance", in=ff = 0.     
+- had large amount in early years  
+Fund = 0907 = health insurance reserve, in_ff = 1  
+Fund = 9939 is "group self-insurers' insolv", in_ff = 1  
+Fund = 0940 is Self-Insurers security, in_ff = 0  
+Fund = 0739 is Group Workers Comp Pool Insol, in_ff = 1   
+
+Employer contributions for group insurance are excluded to avoid double counting the cost of healthcare.
+
+All employer contributions are coded as object = 1180. 
+
+- eehc = 0 means it is NOT a state healthcare cost but it is an employer contribution of some type to some fund   
+- eehc = 1 means it is a state employee healthcare cost and it is an employer contribution to health insurance
+
+```{r healthcare-employer-contributions, eval=FALSE, include = FALSE}
+
+# examine group insurance totals per year
+group_ins <- exp_temp %>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 1998-2005 and 2013-present
+   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) )%>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 2006-2012
+    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
+  filter(eehc == 0) %>% 
+    group_by(fy) %>% 
+    summarize(dropped_group_premiums = sum(expenditure))
+
+# examine healthcare cost items total per year
+healthcare_costs <- exp_temp %>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 1998-2005 and 2013-present
+   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) ) %>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 2006-2012
+    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
+  mutate(expenditure = ifelse(eehc==0, 0, expenditure)) %>%    
+  group_by(fy) %>% 
+    summarize(cost_of_provision = sum(expenditure))
+
+exp_temp_check <- exp_temp %>% 
+  mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
+      fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management Bureau of benefits using health insurance reserve 
+      fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services using health insurance reserve - stopped using this in 2012
+    #  fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2002 & fy<2006) ~ "904",
+      
+    #  fund=="0001" & appr_org=="20" & object=="1900" & agency=="416" & (fy>2020) ~ "904",
+      
+    #  obj_seq_type == "19000000" & wh_approp_name == "GROUP INSURANCE" & (fy>2020) ~ "904",
+
+      TRUE ~ as.character(agency))) %>%
+  
+  mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
+         group = ifelse(agency == "904", "904", as.character(agency))) %>% # creates group variable
+filter(group == "904") %>% group_by(fy) %>% summarise(healthcare_cost = sum(expenditure))
+
+exp_temp_check
+
+# Looks good, Sept 28 AWM
+```
+
+If observation is a group insurance contribution, then the expenditure amount is set to $0 (essentially dropped from analysis).
+
+```{r eehc1}
+#if observation is a group insurance contribution, then the expenditure amount is set to $0 (essentially dropped from analysis)
+exp_temp <- exp_temp %>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 1998-2005 and 2013-present
+   fund == "0001" & (object == "1180" | object =="1900") & agency == "416" & appr_org=="20", 0, 1) )%>% 
+  mutate(eehc = ifelse(
+    # group insurance contributions for 2006-2012
+    fund == "0001" & object == "1180" & agency == "478" & appr_org=="80", 0, eehc) )%>%
+     # group insurance contributions from road fund
+  # coded with 1900 for some reason??
+    mutate(eehc = ifelse(
+      fund == "0011" & object == "1900" & agency == "416" & appr_org=="20", 0, eehc) ) %>%
+  
+  mutate(expenditure = ifelse(eehc=="0", 0, expenditure)) %>%
+  
+  mutate(agency = case_when(   # turns specific items into State Employee Healthcare (agency=904)
+      fund=="0907" & (agency=="416" & appr_org=="20") ~ "904",   # central management Bureau of benefits using health insurance reserve 
+      fund=="0907" & (agency=="478" & appr_org=="80") ~ "904",   # agency = 478: healthcare & family services using health insurance reserve - stopped using this in 2012
+      TRUE ~ as.character(agency))) %>%
+  mutate(agency_name = ifelse(agency == "904", "STATE EMPLOYEE HEALTHCARE", as.character(agency_name)),
+         in_ff = ifelse( agency == "904", 1, in_ff),
+         group = ifelse(agency == "904", "904", as.character(agency)))  # creates group variable
+
+# Default group = agency number
+
+healthcare_costs <- exp_temp %>% filter(group == "904")
+
+healthcare_costs %>% group_by(fy,obj_seq_type) %>% 
+  summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)) %>% 
+  ggplot() +geom_line(aes(x=fy, y=healthcare_cost, color = obj_seq_type))
+
+
+exp_temp <- anti_join(exp_temp, healthcare_costs) %>% mutate(expenditure = ifelse(object == "1180", 0, expenditure))
+
+healthcare_costs_yearly <- healthcare_costs %>% group_by(fy, group) %>% summarise(healthcare_cost = sum(expenditure, na.rm = TRUE)/1000000) %>% select(-group)
+
+
+```
+
+> This code chunk above for dealing with group insurance means that healthcare costs need to be added to expenditures after other group names are assigned. Then employee contributions/insurance premiums from the revenue side need to be subtracted from the total cost of employee healthcare for the net cost.
+
+
+### Local Transfers
+
+Separate transfers to local from parent agencies that come from DOR(492) or Transportation (494). Treats muni revenue transfers as expenditures, not negative revenue.
+
+The share of certain taxes levied state-wide at a common rate and then transferred to local governments. (Purely local-option taxes levied by specific local governments with the state acting as collection agent are NOT included.)
+
+The five corresponding revenue items are:  
+
+• Local share of Personal Income Tax   
+• Local share of General Sales Tax   
+• Personal Property Replacement Tax on Business Income  
+• Personal Property Replacement Tax on Public Utilities  
+• Local share of Motor Fuel Tax 
+  - Transportation Renewal Fund 0952  
+  
+Notes - these don't exit:
+- fund=="0627" & object=="4472"~ "976" # public transportation   
+- fund=="0648" & object=="4472" ~ "976",
+
+```{r transfers-to-local}
+exp_temp <- exp_temp %>% mutate(
+  agency = case_when(fund=="0515" & object=="4470" & type=="08" ~ "971", # income tax to local governments
+                     fund=="0515" & object=="4491" & type=="08" & sequence=="00" ~ "971", # object is shared revenue payments
+                     fund=="0802" & object=="4491" ~ "972", #pprt transfer
+                     fund=="0515" & object=="4491" & type=="08" & sequence=="01" ~ "976", #gst to local
+                     fund=="0627" & object=="4472"~ "976" , # public transportation fund but no observations exist
+                     fund=="0648" & object=="4472" ~ "976", # downstate public transportation, but doesn't exist
+                     fund=="0515" & object=="4470" & type=="00" ~ "976", # object 4470 is grants to local governments
+                    object=="4491" & (fund=="0188"|fund=="0189") ~ "976",
+                     fund=="0187" & object=="4470" ~ "976",
+                     fund=="0186" & object=="4470" ~ "976",
+                    object=="4491" & (fund=="0413"|fund=="0414"|fund=="0415")  ~ "975", #mft to local
+                  fund == "0952"~ "975", # Added Sept 29 2022 AWM. Transportation Renewal MFT
+                    TRUE ~ as.character(agency)),
+  
+  agency_name = case_when(agency == "971"~ "INCOME TAX 1/10 TO LOCAL",
+                          agency == "972" ~ "PPRT TRANSFER TO LOCAL",
+                          agency == "975" ~ "MFT TO LOCAL",
+                          agency == "976" ~ "GST TO LOCAL",
+                          TRUE~as.character(agency_name)),
+  group = ifelse(agency>"970" & agency < "977", as.character(agency), as.character(group)))
+
+```
+
+
+```{r drop-local-transfers}
+transfers_long <- exp_temp %>% 
+  filter(group == "971" |group == "972" | group == "975" | group == "976")
+
+transfers_long %>% 
+  group_by(agency_name, group, fy) %>% 
+  summarize(expenditure = sum(expenditure, na.rm=TRUE) )%>% 
+  ggplot() + geom_line(aes(x=fy, y = expenditure, color=agency_name)) + labs(title = "Transfers to Local Governments", caption = "Data Source: Illinois Office of the Comptroller")
+
+transfers <- transfers_long %>%
+  group_by(fy, group ) %>%
+  summarize(sum_expenditure = sum(expenditure)/1000000) %>%
+  pivot_wider(names_from = "group", values_from = "sum_expenditure", names_prefix = "exp_" )
+
+exp_temp <- anti_join(exp_temp, transfers_long)
+
+
+dropped_inff_0 <- exp_temp %>% filter(in_ff == 0)
+
+exp_temp <- exp_temp %>% filter(in_ff == 1) # drops in_ff = 0 funds AFTER dealing with net-revenue above
+
+```
+
+
+### Debt Service
+
+
+Debt Service expenditures include interest payment on both short-term and long-term debt. We do not include escrow or principal payments. 
+
+**Decision from Sept 30 2022:** We are no longer including short term principal payments as a cost; only interest on borrowing is a cost. Pre FY22 and the FY21 correction, we did include an escrow payment and principle payments as costs but not bond proceeds as revenues. This caused expenditures to be inflated because we were essentially counting debt twice - the principle payment and whatever the money was spent on in other expenditure categories, which was incorrect. 
+
+
+**Objects:**    
+8813 interest **INCLUDE AS COST**  
+8811 is for principle **EXCLUDE from aggregate debt expenditure**  
+8841 is for escrow payments **EXCLUDE from aggregate debt expenditure**  
+8800 is for capital projects (Build Illinois Bonds, Civic Center, Tollway **EXCLUDE tollway in debt cost**
+  - Note: debt principle and interest are both included in capital projects because they are combined in the data observations; bond proceeds are not considered a revenue source 
+
+
+**Obj_seq_type:**       
+- Exclude: Bond principle payments: obj_seq_type == 88110008   
+- Exclude: Short term borrowing principle: obj_seq_type == 88110108  
+- Include: General Obligation Bond Interest: obj_seq_type == 88130000 & 88130008  
+- Include: Interest on short-term borrowing: 88130108  
+- Exclude: Escrow payment == 88410008  
+- Include: Build IL Bonds principal AND interest  
+  - Tollway is obj_seq_type == 88000055, filter out fund == 0455 to remove tollway  
+  - fund == 0455 is the IL State Toll Highway fund, items mostly for operations and maintenance  
+
+```{r tollway}
+tollway <- exp_temp %>% filter(fund == "0455") #all tollway expenditures
+tollway_debt <- exp_temp %>%filter(object == "8800") # ALL Capital projects debt service
+
+
+
+rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source) 
+
+# look at Illinois tollway bond proceeds and debt service: 
+# rev_temp %>% filter(fund == "0455") # examine items in fund 0455
+#exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
+
+#rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts)) %>% arrange(-fy)
+
+
+exp_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(expenditure = sum(expenditure)) %>% ggplot() + geom_line(aes(x=fy, y=expenditure)) + labs(title = "Fund 0455 from Expenditure: All Tollway Expenditures", caption = "Data from IOC Expenditure Files. Fund 0455 is the IL State Tollway")
+
+
+# all tollway revenues, not just bond proceeds
+rev_temp %>% filter(fund == "0455") %>% group_by(fy) %>% summarize(sum = sum(receipts))%>%  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - All Tollway Revenue", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue") 
+
+# tollway bond proceeds
+rev_temp %>% filter(fund == "0455" & source == "0571") %>% group_by(fy) %>% summarize(sum = sum(receipts))%>% 
+  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Fund 0455 - Tollway Revenue: Tollway Bond Proceeds", caption = "Data from IOC Revenue Files. Fund 0455 is the IL State Tollway Revenue")
+
+
+#tollway debt principal and interest
+exp_temp %>%filter(object == "8800" & fund == "0455") %>% group_by(fy) %>% summarize(sum=sum(expenditure)) %>% 
+  ggplot() + geom_line(aes(x=fy, y=sum)) + labs(title = "Tollway Debt Service", caption = "Debt service includes principal and interest for the Illinois Tollway. Object = 8800 and fund = 0455")
+
+# Tollway agency expenditures = SAME as filtering by fund == 0455
+#tollway<-exp_temp %>% filter(agency == "557")
+#exp_temp %>% filter(agency == "557") %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
+
+```
+
+Filtering for interest on short term borrowing and GO bonds (8813_ _ _ _) and GO bond principal amounts (88130008).  
+- object == 8813 is for interest but obj_seq_type is used just to be more specific below.   
+
+```{r}
+
+# GO bond principal and GO bond interest
+GObond_debt <- exp_temp %>% 
+  filter(obj_seq_type == "88110008" |obj_seq_type == "88130000" | obj_seq_type == "88130008") %>% 
+  group_by(fy, obj_seq_type) %>% 
+  summarize(sum = sum(expenditure, na.rm=TRUE)) %>% 
+  pivot_wider(names_from = obj_seq_type, values_from = sum) %>% 
+  mutate(principal = `88110008`,
+         interest = sum(`88130008`+`88130000`, na.rm = TRUE),
+         ratio = (as.numeric(interest)/as.numeric(principal)))
+
+GObond_debt %>% select(principal, interest, ratio) %>%
+  mutate(across(principal:interest, ~format(., big.mark= ",", scientific = F)))
+
+GObond_debt %>% ggplot() + 
+  geom_line(aes(x=fy, y=principal, color = "Principal"))+ 
+  geom_line(aes(x=fy, y=interest, color = "Interest"))
+
+# short term borrowing, first observation is in 2004?
+short_debt <- exp_temp %>% 
+  filter(obj_seq_type == 88110108 |obj_seq_type == 88130108) %>% 
+  group_by(fy, obj_seq_type) %>% 
+  summarize(sum = sum(expenditure, na.rm=TRUE)) %>% 
+  pivot_wider(names_from = obj_seq_type, values_from = sum) %>% 
+  mutate(principal = `88110108`,
+         interest = `88130108`,
+         ratio = (as.numeric(interest)/as.numeric(principal)))
+
+short_debt %>% select(principal, interest, ratio) %>%
+  mutate(across(principal:interest, ~format(., big.mark= ",",  scientific = F)))
+
+short_debt %>% ggplot() + 
+  geom_col(aes(x=fy, y=principal/1000000, fill = "Principal"))+ 
+  geom_col(aes(x=fy, y=interest/1000000, fill = "Interest")) + 
+  labs(title = "Short Term Borrowing: Principal and Interest Payments")
+
+capitalprojects <- exp_temp %>%filter(object == "8800")
+
+
+all_debt <- exp_temp %>% 
+  filter(fund != "0455" & (object == "8811" |object == "8813" | object == "8800") )%>% 
+  group_by(fy, object) %>% 
+  summarize(sum = sum(expenditure, na.rm=TRUE)) %>% 
+  pivot_wider(names_from = object, values_from = sum) %>% 
+  mutate(principal = `8811`,
+         interest = `8813`,
+         CapitalProjects = `8800`,
+         ratio = (as.numeric(interest)/as.numeric(principal)))
+
+all_debt %>% select(principal, interest, CapitalProjects, ratio) %>%
+  mutate(across(principal:CapitalProjects, ~format(., big.mark= ",", scientific = F)))
+
+all_debt %>% ggplot() + 
+  geom_line(aes(x=fy, y=principal/1000000, color = "Principal"))+ 
+  geom_line(aes(x=fy, y=interest/1000000, color = "Interest"))+
+  geom_line(aes(x=fy, y = CapitalProjects / 1000000, color = "Capital Projects"))+
+  labs(y = "Debt ($Millions)", title = "Short term borrowing and GO Bonds",
+       subtitle = "Principal and Interest payments")
+
+
+```
+
+Capital projects include the IL Civic Center and Build Illinois Bonds. Tollway principal and interest has been dropped from Debt Service but is counted in Tollway Expenditure Cost.
+
+```{r debt-service}
+debt_drop <- exp_temp %>% 
+  filter(object == "8841" |  object == "8811")  
+# escrow  OR  principle
+
+#debt_drop %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)
+
+
+debt_keep <- exp_temp %>% 
+  filter(fund != "0455" & (object == "8813" | object == "8800" )) 
+# examine the debt costs we want to include
+
+#debt_keep %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy) 
+
+
+exp_temp <- anti_join(exp_temp, debt_drop) 
+exp_temp <- anti_join(exp_temp, debt_keep)
+
+debt_keep <- debt_keep %>%
+  mutate(
+    agency = ifelse(fund != "0455" & (object == "8813" | object == "8800"), "903", as.character(agency)),
+    group = ifelse(fund != "0455" & (object == "8813" | object == "8800"), "903", as.character(group)),
+    in_ff = ifelse(group == "903", 1, as.character(in_ff)))
+
+debt_keep_yearly <- debt_keep %>% group_by(fy, group) %>% summarize(debt_cost = sum(expenditure,na.rm=TRUE)/1000000) %>% select(-group)
+
+```
+
+### Medicaid
+
+__Medicaid.__ That portion of the Healthcare and Family Services (or Public Aid in earlier years, agency code 478) budget for Medical (appr_organization code 65) for awards and grants (object codes 4400 and 4900).  
+
+> State CURE will remain in the Medicaid expenditure category due to the nature of it being federal funds providing public health services and funding to locations that provide public services.
+
+- Uses same appropriation name of "HEALTHCARE PROVIDER RELIEF" and fund == 0793 and obj_seq_type == 49000000. So can defend the "mistake" of including healthcare provider relief as Medicaid expenditure. 
+
+
+```{r Medicaid-check, include = FALSE, eval=FALSE}
+medicaid_check <- exp_temp %>% filter(agency=="478" & (appr_org=="01" | appr_org == "65" | appr_org=="88") & (object=="4900" | object=="4400"))
+# This includes the State CURE fund
+
+medicaid_check %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrange(-fy)  # looks good I think AWM
+
+# if we want state CURE as public health or other group number
+# exp_temp <- exp_temp %>% mutate(group = if_else(fund == "0324" & agency=="478" & appr_org == "65" & object=="4900", "478", as.character(group)))
+```
+
+
+## Add Fiscal Future group codes
+
+```{r group-codes}
+
+
+exp_temp <- exp_temp %>%
+  #mutate(agency = as.numeric(agency) ) %>%
+  # arrange(agency)%>%
+  mutate(
+    group = case_when(
+      agency>"100"& agency<"200" ~ "910", # legislative
+      
+      agency == "528"  | (agency>"200" & agency<"300") ~ "920", # judicial
+      pension>0  ~ "901", # pensions
+      (agency>"309" & agency<"400") ~ "930",    # elected officers
+      
+      agency == "586" ~ "959", # create new K-12 group
+
+      agency=="402" | agency=="418" | agency=="478" | agency=="444" | agency=="482" ~ as.character(agency), # aging, CFS, HFS, human services, public health
+      T ~ as.character(group))
+    ) %>%      
+
+  
+  mutate(group = case_when(
+    agency=="478" & (appr_org=="01" | appr_org == "65" | appr_org=="88") & (object=="4900" | object=="4400") ~ "945", # separates CHIP from health and human services and saves it as Medicaid
+    
+    agency == "586" & fund == "0355" ~ "945",  # 586 (Board of Edu) has special education which is part of medicaid
+    
+    # OLD CODE: agency == "586" & appr_org == "18" ~ "945", # Spec. Edu Medicaid Matching
+    
+    agency=="425" | agency=="466" | agency=="546" | agency=="569" | agency=="578" | agency=="583" | agency=="591" | agency=="592" | agency=="493" | agency=="588" ~ "941", # public safety & Corrections
+    
+    agency=="420" | agency=="494" |  agency=="406" | agency=="557" ~ as.character(agency), # econ devt & infra, tollway
+    
+    agency=="511" | agency=="554" | agency=="574" | agency=="598" ~ "946",  # Capital improvement
+    
+    agency=="422" | agency=="532" ~ as.character(agency), # environment & nat. resources
+    
+    agency=="440" | agency=="446" | agency=="524" | agency=="563"  ~ "944", # business regulation
+    
+    agency=="492" ~ "492", # revenue
+    
+    agency == "416" ~ "416", # central management services
+    agency=="448" & fy > 2016 ~ "416", #add DoIT to central management 
+    
+    T ~ as.character(group))) %>%
+  
+  
+  mutate(group = case_when(
+    agency=="684" | agency=="691"  ~ as.character(agency),
+    
+    agency=="692" | agency=="695" | (agency>"599" & agency<"677") ~ "960", # higher education
+    
+    agency=="427"  ~ as.character(agency), # employment security
+    
+    agency=="507"|  agency=="442" | agency=="445" | agency=="452" |agency=="458" | agency=="497" ~ "948", # other departments
+    
+    # other boards & Commissions
+    agency=="503" | agency=="509" | agency=="510" | agency=="565" |agency=="517" | agency=="525" | agency=="526" | agency=="529" | agency=="537" | agency=="541" | agency=="542" | agency=="548" |  agency=="555" | agency=="558" | agency=="559" | agency=="562" | agency=="564" | agency=="568" | agency=="579" | agency=="580" | agency=="587" | agency=="590" | agency=="527" | agency=="585" | agency=="567" | agency=="571" | agency=="575" | agency=="540" | agency=="576" | agency=="564" | agency=="534" | agency=="520" | agency=="506" | agency == "533" ~ "949", 
+    
+    # non-pension expenditures of retirement funds moved to "Other Departments"
+    # should have removed pension expenditures already from exp_temp in Pensions step above
+    agency=="131" | agency=="275" | agency=="589" |agency=="593"|agency=="594"|agency=="693" ~ "948",
+    
+    T ~ as.character(group))) %>%
+
+  mutate(group_name = 
+           case_when(
+             group == "416" ~ "Central Management",
+             group == "478" ~ "Healthcare and Family Services",
+             group == "482" ~ "Public Health",
+             group == "900" ~ "NOT IN FRAME",
+             group == "901" ~ "STATE PENSION CONTRIBUTION",
+             group == "903" ~ "DEBT SERVICE",
+             group == "910" ~ "LEGISLATIVE"  ,
+             group == "920" ~ "JUDICIAL" ,
+             group == "930" ~ "ELECTED OFFICERS" , 
+             group == "940" ~ "OTHER HEALTH-RELATED", 
+             group == "941" ~ "PUBLIC SAFETY" ,
+             group == "942" ~ "ECON DEVT & INFRASTRUCTURE" ,
+             group == "943" ~ "CENTRAL SERVICES",
+             group == "944" ~ "BUS & PROFESSION REGULATION" ,
+             group == "945" ~ "MEDICAID" ,
+             group == "946" ~ "CAPITAL IMPROVEMENT" , 
+             group == "948" ~ "OTHER DEPARTMENTS" ,
+             group == "949" ~ "OTHER BOARDS & COMMISSIONS" ,
+             group == "959" ~ "K-12 EDUCATION" ,
+             group == "960" ~ "UNIVERSITY EDUCATION" ,
+             group == agency ~ as.character(group),
+             TRUE ~ "Check name"),
+         year = fy)
+
+exp_temp %>% filter(group_name == "Check name")
+
+#write_csv(exp_temp, "all_expenditures_recoded.csv")
+
+```
+
+
+All expenditures recoded but not aggregated: Allows for inspection of individual expenditures within larger categories. This stage of the data is extremely useful for investigating almost all questions we have about the data. 
+
+Note that these are the raw figures BEFORE we take the additional steps:   
+
+- Subtract employee insurance premiums from State Employee Healthcare expenditures  
+- Subtract tax refunds from tax revenues by revenue type.  
+- Subtract employee pension contributions (originally a dropped revenue) from State Pension expenditures
+
+- **NOT DOING ANYMORE**: ~~Add employee health costs and certain pension contributions to All Other Revenues~~ 
+
+
+
+
+# Modify  Revenue data
+
+
+Revenue Categories NOT included in Fiscal Futures:   
+- 32.  Garnishment-Levies.  (State is fiduciary, not beneficiary.)  
+- 45.  Student Fees-Universities.  (Excluded from state-level budget.)  
+- 51.  Retirement Contributions (of individuals and non-state entities).    
+- 66.  Proceeds, Investment Maturities.  (Not sustainable flow.)  
+- 72.  Bond Issue Proceeds.  (Not sustainable flow.)     
+- 75.  Inter-Agency Receipts.  
+- 79.  Cook County Intergovernmental Transfers.  (State is not beneficiary.)  
+- 98.  Prior Year Refunds.    
+
+**All Other Sources** 
+
+Expanded to include the following smaller sources:  
+- 30.  Horse Racing Taxes & Fees.  
+- 60.  Other Grants and Contracts.  
+- 63.  Investment Income.    
+
+
+For aggregating revenue, use the rev_1998_2022 dataframe, join the funds_ab_in_2022 file to it, and then join the ioc_source_type file to the dataset. Remember: You need to update the funds_ab_in and ioc_source_type file every year! 
+
+```{r create-rev-temp, warning = FALSE, message=FALSE}
+# fund info to revenue for all years
+rev_temp <- inner_join(rev_1998_2022, funds_ab_in_2022, by = "fund") %>% arrange(source)
+
+# need to update the ioc_source_type file every year! 
+ioc_source_type <- readxl::read_xlsx("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/ioc_source_updated22_AWM.xlsx")
+
+rev_temp <- left_join(rev_temp, ioc_source_type, by = "source")
+# automatically used source, source name does not match for the join to work using source_name
+```
+
+Update Agencies: Early agencies replaced by successors
+```{r agencies-rev}
+# recodes old agency numbers to consistent agency number
+rev_temp <- rev_temp %>% 
+  mutate(agency = case_when(
+    (agency=="438"| agency=="475" |agency == "505") ~ "440",
+    # financial institution &  professional regulation &
+     # banks and real estate  --> coded as  financial and professional reg
+    agency == "473" ~ "588", # nuclear safety moved into IEMA
+    (agency =="531" | agency =="577") ~ "532", # coded as EPA
+    (agency =="556" | agency == "538") ~ "406", # coded as agriculture
+    agency == "560" ~ "592", # IL finance authority (fire trucks and agriculture stuff)to state fire marshal
+    agency == "570" & fund == "0011" ~ "494",   # city of Chicago road fund to transportation
+    TRUE ~ (as.character(agency)))) 
+```
+
+
+### Federal to State Transfers
+
+```{r create-rev-federal-transfers}
+rev_temp <- rev_temp %>% 
+  mutate(
+    rev_type = ifelse(rev_type=="57" & agency=="478" & (source=="0618"|source=="2364"|source=="0660"|source=="1552"| source=="2306"| source=="2076"|source=="0676"|source=="0692"), "58", rev_type),
+    rev_type_name = ifelse(rev_type=="58", "FEDERAL TRANSPORTATION", rev_type_name),
+    rev_type = ifelse(rev_type=="57" & agency=="494", "59", rev_type),
+    rev_type_name = ifelse(rev_type=="59", "FEDERAL TRANSPORTATION", rev_type_name),
+    rev_type_name = ifelse(rev_type=="57", "FEDERAL OTHER", rev_type_name),
+    rev_type = ifelse(rev_type=="6", "06", rev_type),
+    rev_type = ifelse(rev_type=="9", "09", rev_type)) 
+
+rev_temp %>% 
+  filter(rev_type == "58" | rev_type == "59" | rev_type == "57") %>% 
+  group_by(fy, rev_type, rev_type_name) %>% 
+  summarise(receipts = sum(receipts, na.rm = TRUE)/1000000) %>% 
+  ggplot() +
+  geom_line(aes(x=fy, y=receipts,color=rev_type)) +
+  labs(title = "Federal to State Transfers", 
+       y = "Millions of Dollars", x = "",
+       caption = "57 = Other; 58 = Medicaid Reimbursements; 59=Transportation")
+```
+
+### Pension Contributions
+
+Employee contributions to pension are a revenue source for the state. In order to get the net cost of  pensions for the state, employee contributions should be subtracted in order to calculate net costs.  
+
+- current year employee revenue source = 0573   
+- contributions by employee == 572 (stops at 2011)  
+
+
+```{r}
+#pension_rev_check <- rev_temp %>% filter(source == "0572" | source == "0573" | source == "0574" | source == "0577" | source == "1982" | source == "2567")
+
+#write_csv(pension_rev_check, "pension_revenue_check.csv")
+
+
+# current year employee revenue source = 0573, contributions by employee == 572 (stops at 2011)
+pension_rev <- rev_temp %>% 
+  filter(rev_type == "51" & source == "0573" | source == "0572")
+
+
+rev_type <- anti_join(rev_temp, pension_rev)
+
+pension_rev_yearly <- rev_temp %>% 
+  filter(rev_type == "51" & source == "0573" | source == "0572") %>% 
+  group_by(fy, rev_type) %>%
+  summarise(pension_rev_sum = sum(receipts, na.rm=TRUE)/1000000) %>% select(-rev_type)
+
+```
+
+`pension_rev` should be subtracted from the state pension expenditures. Employee contributions to pensions are a revenue source. We want net pension cost, therefore subtract employee contributions from pension costs. 
+
+### Health Insurance Premiums from Employees
+
+Employee insurance premiums for healthcare are a revenue source for the state. In order to get the true cost of State Employee Healthcare, total employee insurance premiums should be subtracted from the healthcare expenditure total (exp_904 - premiums). Gather all employee premiums into `opt_premiums` and subtract it from the Expenditure table after aggregating and pivoting steps.
+
+0120 = ins prem-option life
+0120 = ins prem-optional life/univ
+
+0347 = optional health - HMO
+0348 = optional health - dental 
+0349 = optional health - univ/local SI
+0350 = optional health - univ/local
+0351 = optional health - retirement
+0352 = optional health - retirement SI
+0353 = optional health - retire/dental
+0354 = optional health - retirement hmo
+
+2199-2209 = various HMOs, dental, health plans from Health Insurance Reserve (fund)
+
+```{r step-3.6-insurance-premiums}
+
+opt_premiums_CHECK <- rev_temp %>% 
+  filter((fund=="0907" | fund == "0457") & (source=="0120" | source=="0121" | (source>"0345" & source<"0357") | (source>"2199" & source<"2209")                                            ) 
+         )
+
+#collect optional insurance premiums to fund 0907 for use in eehc expenditure  
+rev_temp <- rev_temp %>% 
+  mutate(med_option_recent = ifelse(
+    fund=="0907" & (source=="0120"| source=="0121"| (source>"0345" & source<"0357")|(source>"2199" & source<"2209")), 1, 0),
+    
+    # adds more rev_type codes
+    rev_type = case_when(
+      fund =="0427" ~ "12", # pub utility tax
+      fund == "0742" | fund == "0473" ~ "24", # insurance and fees
+      fund == "0976" ~ "36",# receipts from rev producing
+      fund == "0392" |fund == "0723" ~ "39", # licenses and fees
+      fund == "0656" ~ "78", #all other rev sources
+      TRUE ~ as.character(rev_type)))
+# if not mentioned, then rev_type as it was
+
+
+
+# optional insurance premiums = employee insurance premiums
+med_option_recent <- rev_temp %>%
+  group_by(fy, med_option_recent) %>%
+  summarize(med_option_amt_recent = sum(receipts)/1000000) %>%
+  filter(med_option_recent == 1) %>%
+  rename(year = fy) %>% 
+  select(-med_option_recent)
+
+med_option_long <- rev_temp %>%  filter(med_option_recent == 1)
+# 361 observations have med_option_recent == 1
+
+
+rev_temp <- rev_temp %>% filter(med_option_recent != 1)
+# could also do an antijoin with rev_temp and med_option dataframes
+
+
+```
+
+You must then subtract the employee premiums from the state healthcare expenditures totals. Employee premiums on the revenue side should have receipts coded as $0 or be dropped using anti_join(). 
+
+
+### Transfers in and Out: 
+
+**I don't have much faith in the transfers in and out steps- AWM**
+
+I am currently choosing to exclude the totals from this step. Overall, this decreases the total revenues in "All Other Revenues" by a few million dollars.
+
+- in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")   
+- See the methodology document for the list of what these sources/funds are. 
+
+
+```{r step-3.8}
+rev_temp <- rev_temp %>% 
+  filter(in_ff == 1) %>% 
+  mutate(local = ifelse(is.na(local), 0, local)) %>% # drops all revenue observations that were coded as "local == 1"
+  filter(local != 1)
+
+# 1175 doesnt exist?
+in_from_out <- c("0847", "0867", "1175", "1176", "1177", "1178", "1181", "1182", "1582", "1592", "1745", "1982", "2174", "2264")
+
+# what does this actually include:
+# all are items with rev_type = 75 originally. 
+in_out_df <- rev_type %>%
+  mutate(infromout = ifelse(source %in% in_from_out, 1, 0)) %>%
+  filter(infromout == 1)
+
+rev_temp <- rev_temp %>% 
+  mutate(rev_type_new = ifelse(source %in% in_from_out, "76", rev_type))
+# if source contains any of the codes in in_from_out, code them as 76 (all other rev).
+```
+
+
+```{r droprevtypes}
+# revenue types to drop
+drop_type <- c("32", "45", "51", 
+               "66", "72", "75", "79", "98")
+
+# drops Blank, Student Fees, Retirement contributions, proceeds/investments,
+# bond issue proceeds, interagency receipts, cook IGT, Prior year refunds.
+
+
+rev_temp <- rev_temp %>% filter(!rev_type_new %in% drop_type)
+# keep observations that do not have a revenue type mentioned in drop_type
+
+table(rev_temp$rev_type_new)
+
+rev_temp %>% 
+  group_by(fy, rev_type_new) %>% 
+  summarize(total_reciepts = sum(receipts)/1000000) %>%
+  pivot_wider(names_from = rev_type_new, values_from = total_reciepts, names_prefix = "rev_") 
+
+# combines smallest 4  categories to to "Other"
+# they were the 4 smallest in past years, are they still the 4 smallest? 
+
+#rev_temp <- rev_temp %>%  
+#  mutate(rev_type_new = ifelse(rev_type=="30" | rev_type=="60" | rev_type=="63" | rev_type=="76", "78", rev_type_new))
+
+
+#table(rev_temp$rev_type_new)  # check work
+
+
+rm(rev_1998_2022)
+rm(exp_1998_2022)
+```
+
+```{r revenue-78-check, include=FALSE, eval = FALSE}
+
+filter(rev_temp) %>% 
+  filter(fy == 2022 | fy == 2021) %>%  write.csv("rev-recoded-2022.csv")
+  #group_by(fund_name) %>% 
+ # summarize(sum = sum(receipts)) %>% arrange(-sum)
+
+```
+
+
+# Pivoting and Merging
+
+- State employee contributions (eehc from eehc2_amt) should be subtracted from state employee healthcare expenditures. State employer contributions should be dropped to avoid double counting costs.   
+- State employee health insurance premiums should be subtracted from state healthcare costs for the net healthcare cost. 
+- Subtract employee insurance premiums from State Employee Healthcare Expenditures (group == 904) - Employee Premiums = Actual state healthcare costs.  
+
+  - $ff\_exp\$exp904 - med\_option\$med\_option\_amt\_recent = state healthcare costs$
+  
+- Employee contributions should be subtracted from from state pension costs. 
+    -$ff\_exp\$exp_901 - rev\_51 = state pension costs$  even though rev_type == 51 (retirement contributions) is dropped based on past code.
+    
+    - _Stata code, no longer doing: State pension contributions funded by bonds (pension_amt from pension2_fy22) should be added to Other revenues_   
+ 
+
+
+- Local Government Transfers (exp_970) should be on the expenditure side
+
+ 
+
+## Revenues
+
+I chose to drop rev_76 for Transfers in and Out because I do not understand why that step occurs in the previously used Stata code. If I keep rev_76 in and include it in rev_78 for All Other Revenues, then the difference between R and Stata code should be resolved.  
+  - after Stata code is edited to drop employee insurance premium revenue from all other revenues. Currently it keeps it in AND subtracts it from state healthcare expenditures.  
+
+```{r final-ffrev-table}
+ff_rev <- rev_temp %>% 
+  group_by(rev_type_new, fy) %>% 
+  summarize(sum_receipts = sum(receipts, na.rm=TRUE)/1000000 ) %>%
+  pivot_wider(names_from = "rev_type_new", values_from = "sum_receipts", names_prefix = "rev_")
+
+ff_rev<- left_join(ff_rev, tax_refund)
+
+#ff_rev <- left_join(ff_rev, pension2_fy22, by=c("fy" = "year"))
+
+#ff_rev <- left_join(ff_rev, eehc2_amt) 
+ff_rev <- mutate_all(ff_rev, ~replace_na(.,0))
+
+
+ff_rev <- ff_rev %>%
+  mutate(rev_02 = rev_02 - ref_02,
+         rev_03 = rev_03 - ref_03,
+         rev_06 = rev_06 - ref_06,
+         rev_09 = rev_09 - ref_09,
+         rev_21 = rev_21 - ref_21,
+         rev_24 = rev_24 - ref_24,
+         rev_35 = rev_35 - ref_35
+
+      #   rev_78new = rev_78 #+ pension_amt #+ eehc
+         ) %>% 
+  select(-c(ref_02:ref_35, rev_99, rev_NA, rev_76#, pension_amt , rev_76,
+          #  , eehc
+            ))
+
+ff_rev
+
+```
+
+
+Since I already pivot_wider()ed the table in the previous code chunk, I now change each column's name by using rename() to set new variable names. Ideally the final dataframe would have both the variable name and the variable label but I have not done that yet. 
+
+```{r}
+aggregate_rev_labels <- ff_rev %>%
+  rename("INDIVIDUAL INCOME TAXES, gross of local, net of refunds" = rev_02,
+         "CORPORATE INCOME TAXES, gross of PPRT, net of refunds" = rev_03,
+         "SALES TAXES, gross of local share" = rev_06 ,
+         "MOTOR FUEL TAX, gross of local share, net of refunds" = rev_09 ,
+         "PUBLIC UTILITY TAXES, gross of PPRT" = rev_12,
+         "CIGARETTE TAXES" = rev_15 ,
+         "LIQUOR GALLONAGE TAXES" = rev_18,
+         "INHERITANCE TAX" = rev_21,
+         "INSURANCE TAXES&FEES&LICENSES, net of refunds" = rev_24 ,
+         "CORP FRANCHISE TAXES & FEES" = rev_27,
+      #   "HORSE RACING TAXES & FEES" = rev_30,  # in Other
+         "MEDICAL PROVIDER ASSESSMENTS" = rev_31 ,
+         # "GARNISHMENT-LEVIES " = rev_32 , # dropped
+         "LOTTERY RECEIPTS" = rev_33 ,
+         "OTHER TAXES" = rev_35,
+         "RECEIPTS FROM REVENUE PRODUCNG" = rev_36, 
+         "LICENSES, FEES & REGISTRATIONS" = rev_39 ,
+         "MOTOR VEHICLE AND OPERATORS" = rev_42 ,
+         #  "STUDENT FEES-UNIVERSITIES" = rev_45,   # dropped
+         "RIVERBOAT WAGERING TAXES" = rev_48 ,
+         # "RETIREMENT CONTRIBUTIONS " = rev_51, # dropped
+         "GIFTS AND BEQUESTS" = rev_54, 
+         "FEDERAL OTHER" = rev_57 ,
+         "FEDERAL MEDICAID" = rev_58, 
+         "FEDERAL TRANSPORTATION" = rev_59 ,
+      #   "OTHER GRANTS AND CONTRACTS" = rev_60, #other
+       #  "INVESTMENT INCOME" = rev_63, # other
+         # "PROCEEDS,INVESTMENT MATURITIES" = rev_66 , #dropped
+         # "BOND ISSUE PROCEEDS" = rev_72,  #dropped
+         # "INTER-AGENCY RECEIPTS" = rev_75,  #dropped
+     #    "TRANSFER IN FROM OUT FUNDS" = rev_76,  #other
+         "ALL OTHER SOURCES" = rev_78,
+         # "COOK COUNTY IGT" = rev_79, #dropped
+         # "PRIOR YEAR REFUNDS" = rev_98 #dropped
+  ) 
+
+aggregate_rev_labels
+
+# Still contains columns that should be dropped for the clean final aggregate table. Drop the variables I don't want in the output table in the "graphs" section.  
+
+```
+
+
+
+## Expenditures
+
+Create state employee healthcare costs that reflects the health costs minus the optional insurance premiums that came in ($904\_new = 904 - med\_option\_amt\_recent$).
+
+Create exp_970 for all local government transfers (exp_971 + exp_972  + exp_975 + exp_976).
+
+```{r}
+
+ff_exp <- exp_temp %>% 
+  group_by(fy, group) %>% 
+  summarize(sum_expenditures = sum(expenditure, na.rm=TRUE)/1000000 ) %>%
+  pivot_wider(names_from = "group", values_from = "sum_expenditures", names_prefix = "exp_")%>%
+  
+    left_join(debt_keep_yearly) %>%
+  mutate(exp_903 = debt_cost) %>%
+
+    left_join(healthcare_costs_yearly) %>%
+
+  # join state employee healthcare and subtract employee premiums
+  left_join(med_option_recent, by = c("fy" = "year")) %>%
+  mutate(exp_904_new = (`healthcare_cost` - `med_option_amt_recent`)) %>% # state employee healthcare premiums
+  
+  left_join(pension_rev_yearly) %>%
+      mutate(exp_901_new = exp_901 - pension_rev_sum) %>% #employee pension contributions
+
+
+  # join local transfers and create exp_970
+  left_join(transfers) %>%
+  mutate(exp_970 = exp_971 + exp_972  + exp_975 + exp_976)
+
+ff_exp<- ff_exp %>% select(-c(exp_901, med_option_amt_recent, debt_cost, healthcare_cost, pension_rev_sum, exp_971:exp_976)) # drop unwanted columns
+ff_exp
+```
+
+
+```{r final-table-with-labels, include = FALSE, eval=FALSE}
+
+exp_temp %>%
+  group_by(year, group) %>%
+  summarize(sum_expenditure = sum(expenditure)/1000000) %>%
+  arrange(year) %>%
+  pivot_wider(names_from = "group", values_from = "sum_expenditure")
+
+
+aggregate_exp_labeled <- exp_temp %>%
+  group_by(year, group_name) %>%
+  summarize(sum_expenditure = sum(expenditure)/1000000) %>%
+  arrange(year) %>%
+  pivot_wider(names_from = "group_name", values_from = "sum_expenditure")
+
+aggregate_exp_labeled
+```
+
+
+# Clean Table Outputs 
+
+Create total revenues and total expenditures only:
+
+- after aggregating expenditures and revenues, pivoting wider, and left_joining the additional mini dataframes (med_option_recent, pension2_fy22, eehc2_amt), then I want to drop the columns that I no longer want and then pivot_longer(). After pivoting_longer() and creating `rev_long` and `exp_long`, expenditures and revenues are in the same format and can be combined together for the totals and gap each year.   
+
+
+```{r rev-exp-totals-long}
+rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(Year = fy) %>%
+  mutate(Category_name = case_when(
+    Category == "02" ~ "INDIVIDUAL INCOME TAXES, gross of local, net of refunds" ,
+    Category == "03" ~ "CORPORATE INCOME TAXES, gross of PPRT, net of refunds" ,
+    Category == "06" ~ "SALES TAXES, gross of local share" ,
+    Category == "09" ~ "MOTOR FUEL TAX, gross of local share, net of refunds" ,
+    Category == "12" ~ "PUBLIC UTILITY TAXES, gross of PPRT" ,
+    Category == "15" ~ "CIGARETTE TAXES" ,
+    Category == "18" ~ "LIQUOR GALLONAGE TAXES" ,
+    Category == "21" ~ "INHERITANCE TAX" ,
+    Category == "24" ~ "INSURANCE TAXES&FEES&LICENSES, net of refunds " ,
+    Category == "27" ~ "CORP FRANCHISE TAXES & FEES" ,
+    Category == "30" ~ "HORSE RACING TAXES & FEES",  # in Other
+    Category == "31" ~ "MEDICAL PROVIDER ASSESSMENTS" ,
+    Category == "32" ~ "GARNISHMENT-LEVIES" , # dropped
+    Category == "33" ~  "LOTTERY RECEIPTS" ,
+    Category == "35" ~  "OTHER TAXES" ,
+    Category == "36" ~  "RECEIPTS FROM REVENUE PRODUCNG", 
+    Category == "39" ~  "LICENSES, FEES & REGISTRATIONS" ,
+    Category == "42" ~  "MOTOR VEHICLE AND OPERATORS" ,
+    Category == "45" ~  "STUDENT FEES-UNIVERSITIES",   # dropped
+    Category == "48" ~  "RIVERBOAT WAGERING TAXES" ,
+    Category == "51" ~  "RETIREMENT CONTRIBUTIONS" , # dropped
+    Category == "54" ~ "GIFTS AND BEQUESTS", 
+    Category == "57" ~  "FEDERAL OTHER" ,
+    Category == "58" ~  "FEDERAL MEDICAID", 
+    Category == "59" ~  "FEDERAL TRANSPORTATION" ,
+    Category == "60" ~  "OTHER GRANTS AND CONTRACTS", #other
+    Category == "63" ~  "INVESTMENT INCOME", # other
+    Category == "66" ~ "PROCEEDS,INVESTMENT MATURITIES" , #dropped
+    Category == "72" ~ "BOND ISSUE PROCEEDS",  #dropped
+    Category == "75" ~  "INTER-AGENCY RECEIPTS ",  #dropped
+    Category == "76" ~  "TRANSFER IN FROM OUT FUNDS",  #other
+    Category == "78" ~  "ALL OTHER SOURCES" ,
+    Category == "79" ~   "COOK COUNTY IGT", #dropped
+    Category == "98" ~  "PRIOR YEAR REFUNDS", #dropped
+                 T ~ "Check Me!"
+
+  ) )
+
+
+exp_long <- pivot_longer(ff_exp, exp_402:exp_970 , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
+  rename(Year = fy ) %>% 
+  mutate(Category_name = 
+           case_when(
+             Category == "402" ~ "AGING" ,
+             Category == "406" ~ "AGRICULTURE", 
+             Category == "416" ~ "CENTRAL MANAGEMENT",
+             Category == "418" ~ "CHILDREN AND FAMILY SERVICES", 
+             Category == "420" ~ "COMMERCE AND ECONOMIC OPPORTUNITY",
+             Category == "422" ~ "NATURAL RESOURCES" ,
+             Category == "426" ~ "CORRECTIONS",
+             Category == "427" ~ "EMPLOYMENT SECURITY" ,
+             Category == "444" ~ "HUMAN SERVICES" ,
+             Category == "448" ~ "Innovation and Technology", # AWM added fy2022
+             Category == "478" ~ "HEALTHCARE & FAM SER NET OF MEDICAID", 
+             Category == "482" ~ "PUBLIC HEALTH", 
+             Category == "492" ~ "REVENUE", 
+             Category == "494" ~ "TRANSPORTATION" ,
+             Category == "532" ~ "ENVIRONMENTAL PROTECT AGENCY" ,
+             Category == "557" ~ "IL STATE TOLL HIGHWAY AUTH" ,
+             Category == "684" ~ "IL COMMUNITY COLLEGE BOARD", 
+             Category == "691" ~ "IL STUDENT ASSISTANCE COMM" ,
+             Category == "900" ~ "NOT IN FRAME",
+             Category == "901" ~ "STATE PENSION CONTRIBUTION",
+             Category == "903" ~ "DEBT SERVICE",
+             Category == "904" ~ "State Employee Healthcare",
+             Category == "910" ~ "LEGISLATIVE"  ,
+             Category == "920" ~ "JUDICIAL" ,
+             Category == "930" ~ "ELECTED OFFICERS" , 
+             Category == "940" ~ "OTHER HEALTH-RELATED", 
+             Category == "941" ~ "PUBLIC SAFETY" ,
+             Category == "942" ~ "ECON DEVT & INFRASTRUCTURE" ,
+             Category == "943" ~ "CENTRAL SERVICES",
+             Category == "944" ~ "BUS & PROFESSION REGULATION" ,
+             Category == "945" ~ "MEDICAID" ,
+             Category == "946" ~ "CAPITAL IMPROVEMENT" , 
+             Category == "948" ~ "OTHER DEPARTMENTS" ,
+             Category == "949" ~ "OTHER BOARDS & COMMISSIONS" ,
+             Category == "959" ~ "K-12 EDUCATION" ,
+             Category == "960" ~ "UNIVERSITY EDUCATION",
+             Category == "970" ~ "Local Govt Transfers",
+             T ~ "CHECK ME!")
+           )
+
+#write_csv(exp_long, "expenditures_recoded_long_FY22.csv")
+#write_csv(rev_long, "revenue_recoded_long_FY22.csv")
+
+aggregated_totals_long <- rbind(rev_long, exp_long)
+aggregated_totals_long
+
+
+year_totals <- aggregated_totals_long %>% 
+  group_by(type, Year) %>% 
+  summarize(Dollars = sum(Dollars, na.rm = TRUE)) %>% 
+  pivot_wider(names_from = "type", values_from = Dollars) %>% 
+  rename(
+         Expenditures = exp,
+         Revenue = rev) %>%  
+  mutate(Gap = Revenue - Expenditures) %>% 
+  arrange(desc(Year))
+# creates variable for the Gap each year
+
+year_totals
+
+#write_csv(aggregated_totals_long, "aggregated_totals.csv")
+
+```
+
+```{r}
+rev_long <- read_csv("expenditures_recoded_long_FY22.csv")
+exp_long <- read_csv("revenue_recoded_long_FY22.csv")
+
+aggregated_totals_long <- rbind(rev_long, exp_long)
+
+year_totals <- aggregated_totals_long %>% 
+  group_by(type, Year) %>% 
+  summarize(Dollars = sum(Dollars, na.rm = TRUE)) %>% 
+  pivot_wider(names_from = "type", values_from = Dollars) %>% 
+  rename(
+         Expenditures = exp,
+         Revenue = rev) %>%  
+  mutate(Gap = Revenue - Expenditures) %>% 
+  arrange(desc(Year))
+# creates variable for the Gap each year
+
+year_totals
+
+```
+
+
+# Graphs
+
+
+Graphs made from `aggregated_totals_long` dataframe. 
+
+```{r}
+year_totals %>%  
+  ggplot() +
+  # geom_smooth adds regression line, graphed first so it appears behind line graph
+  geom_smooth(aes(x = Year, y = Revenue), color = "light green", method = "lm", se = FALSE) + 
+  geom_smooth(aes(x = Year, y = Expenditures), color = "gray", method = "lm", se = FALSE) +
+  
+  # line graph of revenue and expenditures
+  geom_line(aes(x = Year, y = Revenue), color = "green4") +
+  geom_line(aes(x = Year, y = Expenditures), color = "black") +
+  
+  # labels
+    theme_bw() +
+  scale_y_continuous(labels = comma)+
+  xlab("Year") + 
+  ylab("Millions of Dollars")  +
+  ggtitle("Illinois Expenditures and Revenue Totals, 1998-2022")
+```
+
+
+```{r include=FALSE}
+aggregated_totals_long %>%  
+  filter(type == "exp") %>% # uses only expenditures
+  ggplot(aes(x = Year, y = Dollars, group = Category, color = Category)) +
+  geom_line()+
+    xlab("Year") + 
+    ylab("Millions of Dollars")  +
+    ggtitle("Illinois Expenditures by Category")
+
+aggregated_totals_long %>%  
+  filter(type == "rev") %>% #uses only revenues
+  ggplot(aes(x = Year, y = Dollars, group = Category, color = Category)) +
+  geom_line()+
+    xlab("Year") + 
+    ylab("Millions of Dollars")  +
+    ggtitle("Illinois Revenues by Category")
+  
+
+
+```
+
+
+**Expenditure and revenue amounts in millions of dollars:** 
+```{r}
+exp_long %>%
+  filter(Year == 2022) %>%
+  #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
+ # select(-c(Year, `Total Expenditures`)) %>%
+  arrange(desc(`Dollars`)) %>%
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
+  coord_flip() +
+      theme_bw() +
+  labs(title = "Expenditures for FY2022") +
+    xlab("Expenditure Categories") +
+  ylab("Millions of Dollars") 
+
+rev_long %>%
+  filter(Year == 2022) %>%
+  #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
+ # select(-c(Year, `Total Expenditures`)) %>%
+  arrange(desc(`Dollars`)) %>%
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`))+ 
+  coord_flip() +
+    theme_bw() +
+      labs(title = "Revenues for FY2022")+
+    xlab("Revenue Categories") +
+  ylab("Millions of Dollars") 
+
+```
+
+
+```{r eval = FALSE, include = FALSE}
+exp_long %>%
+  filter(Year == 2022) %>%
+  #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
+ # select(-c(Year, `Total Expenditures`)) %>%
+  arrange(desc(`Dollars`)) %>%
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category, `Dollars`), y = `Dollars`))+ 
+  coord_flip() +
+    labs(title = "Expenditures for FY2022") +
+    xlab("Expenditure Categories") +
+  ylab("Millions of Dollars") +
+    theme_bw()
+
+rev_long %>%
+  filter(Year == 2022) %>%
+  #mutate(`Total Expenditures`= sum(Dollars, na.rm = TRUE)) %>%
+ # select(-c(Year, `Total Expenditures`)) %>%
+  arrange(desc(`Dollars`)) %>%
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category, `Dollars`), y = `Dollars`))+ 
+  coord_flip() +
+    xlab("Revenue Categories") +
+  ylab("Millions of Dollars") +
+    theme_bw()
+```
+
+
+**Expenditure and revenues when focusing on largest categories and combining others into "All Other Expenditures(Revenues)":**
+
+```{r}
+exp_long %>%
+  filter( Year == 2022) %>%
+  mutate(rank = rank(Dollars),
+        Category_name = ifelse(rank > 13, Category_name, 'All Other Expenditures')) %>%
+ # select(-c(Year, Dollars, rank)) %>%
+  arrange(desc(Dollars)) %>%
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`), fill = "light green")+ 
+  coord_flip() +
+      theme_bw() +
+    labs(title = "Expenditures for FY2022") +
+    xlab("") +
+  ylab("Millions of Dollars")
+
+rev_long %>%
+  filter( Year == 2022) %>%
+  mutate(rank = rank(Dollars),
+        Category_name = ifelse(rank > 10, Category_name, 'All Other Revenue Sources')) %>%
+  arrange(desc(Dollars)) %>%
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category_name, `Dollars`), y = `Dollars`), fill = "light blue")+ 
+  coord_flip() +
+      theme_bw() +
+    labs(title = "Revenues for FY2022") +
+    xlab("") +
+  ylab("Millions of Dollars")
+```
+
+
+__Changes in Categories - 2021 to 2022__  Dot Plot Attempt:
+```{r}
+rev_long %>%
+    filter(Year == "2022" | Year == "2021") %>%
+  mutate(Year = as.character(Year)) %>%
+  ggplot(aes(x = Dollars, y = reorder(Category, Dollars))) +
+  geom_line(aes(group = Category) )+
+    geom_text(aes(x = ifelse(Year == "2022", as.numeric(Dollars), NA),  label = ifelse(Year == "2022", Category_name, "")),  
+            hjust = -0.2,
+            size = 2.8) +
+         geom_point(aes(color = Year), size=2)  +
+  labs(title = "2021 to 2022 Change in Revenue", x = "Millions of Dollars" , y = "",  caption = "")  +
+   scale_color_brewer(palette = "paired", labels = c("FY 2021", "FY 2022"))+
+   theme_classic()+ 
+    theme(
+   legend.position = "bottom" ,
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.line.y.left  = element_blank(),
+  axis.line.x = element_blank(),
+    axis.title.y = element_blank(),
+  axis.ticks.x = element_blank())+
+  scale_x_continuous(limits = c(0, 30000))
+
+
+
+exp_long %>%
+    filter(Year == "2022" | Year == "2021") %>%
+  mutate(Year = as.character(Year)) %>%
+  ggplot(aes(x = Dollars, y = reorder(Category, Dollars))) +
+  geom_line(aes(group = Category) )+
+    geom_text(aes(x = ifelse(Year == "2022", as.numeric(Dollars), NA),  label = ifelse(Year == "2022", Category_name, "")),  
+            hjust = -0.2,
+            size = 2.8) +
+         geom_point(aes(color = Year), size=2)  +
+  labs(title = "2021 to 2022 Change in Expenditures", x = "Millions of Dollars" , y = "",  caption = "")  +
+   scale_color_brewer(palette = "paired", labels = c("FY 2021", "FY 2022"))+
+   theme_classic()+ 
+    theme(
+    legend.position = "bottom" ,
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.line.y.left  = element_blank(),
+  axis.line.x = element_blank(),
+    axis.title.y = element_blank(),
+  axis.ticks.x = element_blank())+
+  scale_x_continuous(limits = c(0, 30000))
+```
+
+
+```{r eval = FALSE, include = FALSE}
+
+# **Keeping the top 13 categories and grouping the rest to All Other Expenditures(Revenues). 
+# Shown as a percentage of total expenditures(revenues)**
+
+
+exp_long %>%
+  filter( Year == 2022) %>%
+  mutate(`Total Expenditures` = sum(Dollars, na.rm = TRUE),
+        `Percent of Total Expenditures` = round((Dollars / `Total Expenditures`*100), 2),
+        rank = rank(-Dollars),
+        Category = ifelse(rank <= 13, Category, 'All Other Expenditures')) %>%
+  select(-c(Year, `Total Expenditures`, rank)) %>%
+  arrange(desc(`Percent of Total Expenditures`)) %>%
+
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category, `Percent of Total Expenditures`), y = `Percent of Total Expenditures`), fill = "light green")+ 
+  coord_flip() +
+    xlab("") +
+      ylab("Percent of Total Expenditure") +
+    theme_bw()
+
+
+exp_long %>%
+  filter( Year == 2022) %>%
+  mutate(`Total Expenditures` = sum(Dollars, na.rm = TRUE),
+        `Percent of Total Expenditures` = round((Dollars / `Total Expenditures`*100), 2),
+        rank = rank(-Dollars),
+        Category_name = ifelse(rank <= 13, Category_name, 'All Other Expendiures')) %>%
+  select(-c(Year, `Total Expenditures`, rank)) %>%
+  arrange(desc(`Percent of Total Expenditures`)) %>%
+
+  ggplot() + 
+  geom_col(aes(x = fct_reorder(Category_name, `Percent of Total Expenditures`), y = `Percent of Total Expenditures`), fill = "light green")+ 
+  coord_flip() +
+  xlab("")+
+    ylab("Percent of Total Expenditure") +
+    theme_bw()
+
+
+```
+
+
+# CAGR / Growth
+
+Each year, you will need to update the CAGR formulas! 
+
+`calc_cagr` is a function created for calculating the CAGRs for different spans of time. 
+
+```{r CAGR-expenditures}
+ 
+# function for calculating the CAGR
+calc_cagr <- function(df, n) {
+  df <- exp_long %>%
+    select(-type) %>%
+    arrange(Category_name, Year) %>%
+    group_by(Category_name) %>%
+    mutate(cagr = ((`Dollars` / lag(`Dollars`, n)) ^ (1 / n)) - 1)
+
+  return(df)
+}
+
+# This works for one variable at a time
+cagr_24 <- calc_cagr(exp_long, 24) %>% 
+  # group_by(Category) %>%
+  summarize(cagr_24 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr23_precovid <- exp_long %>%
+  filter(Year <= 2019) %>%
+  calc_cagr(21) %>% 
+  summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+
+
+cagr_10 <- calc_cagr(exp_long, 10) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_10 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_5 <- calc_cagr(exp_long, 5) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_5 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_3 <- calc_cagr(exp_long, 3) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_3 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_2 <- calc_cagr(exp_long, 2) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_2 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_1 <- calc_cagr(exp_long, 1) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_1 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+CAGR_expenditures_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_24 ) %>% 
+  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
+  rename("Expenditure Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"24 Year CAGR" = cagr_24 )
+
+CAGR_expenditures_summary %>% 
+  kbl(caption = "CAGR Calculations for Expenditure Categories") %>% 
+  kable_styling(bootstrap_options = c("striped"))
+
+# to have it as a csv, uncomment the line below
+#write_csv(CAGR_expenditures_summary, "CAGR_expenditures_summary.csv")
+```
+
+```{r CAGR-revenues}
+  
+calc_cagr <- function(df, n) {
+  df <- rev_long %>%
+    arrange(Category_name, Year) %>%
+    group_by(Category_name) %>%
+    mutate(cagr = ((Dollars / lag(Dollars, n)) ^ (1 / n)) - 1)
+
+  return(df)
+}
+
+# This works for one variable at a time
+cagr_24 <- calc_cagr(rev_long, 24) %>% 
+     # group_by(Category) %>%
+  summarize(cagr_24 = round(sum(cagr*100, na.rm = TRUE), 2))
+
+cagr_10 <- calc_cagr(rev_long, 10) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_10 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_5 <- calc_cagr(rev_long, 5) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_5 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_3 <- calc_cagr(rev_long, 3) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_3 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+cagr_2 <- calc_cagr(rev_long, 2) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_2 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+ cagr_1 <- calc_cagr(rev_long, 1) %>% 
+  filter(Year == 2022) %>%
+  summarize(cagr_1 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
+
+CAGR_revenue_summary <- data.frame(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_24) %>%   
+  select(-c(Category_name.1, Category_name.2, Category_name.3, Category_name.4, Category_name.5 )) %>% 
+  rename("Revenue Category" = Category_name, "1 Year CAGR" = cagr_1, "2 Year CAGR" = cagr_2, "3 Year CAGR" = cagr_3, "5 Year CAGR" = cagr_5, "10 Year CAGR" = cagr_10,"24 Year CAGR" = cagr_24 )
+
+CAGR_revenue_summary %>% 
+  kbl(caption = "CAGR Calculations for Revenue Sources") %>% 
+  kable_styling(bootstrap_options = c("striped"))
+
+# to have it as a csv, uncomment the line below
+#write_csv(CAGR_revenue_summary, "CAGR_revenue_summary.csv")
+
+rm(cagr_1, cagr_2, cagr_3, cagr_5, cagr_10, cagr_24)
+```
+
+Expenditure and Revenue Growth using a lag formula:
+```{r growth}
+ exp_long %>% 
+  group_by(Category_name) %>% 
+  mutate(Growth = ((Dollars) - lag(Dollars))/lag(Dollars) *100) %>% 
+  summarize(Growth = round(mean(Growth, na.rm = TRUE), 2))
+
+ rev_long %>% 
+  group_by(Category_name) %>% 
+  mutate(Growth = ((Dollars) - lag(Dollars))/lag(Dollars) *100) %>% 
+  summarize(Growth = round(mean(Growth, na.rm = TRUE), 2))
+```
+
+# Change from Previous Year
+
+
+```{r }
+
+revenue_change <- rev_long %>%
+  select(-c(type,Category)) %>%
+  filter(Year > 2020) %>%
+  pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
+  mutate(
+    "FY 2022 Revenues ($ billions)" = round(Dollars_2022/1000, digits = 1),
+#    "Change from 2021 to 2022" = round(Dollars_2022 - Dollars_2021, digits = 2),
+         "Percent Change from 2021 to 2022" = round(((Dollars_2022 -Dollars_2021)/Dollars_2021*100), digits = 2)) %>%
+  left_join(CAGR_revenue_summary, by = c("Category_name" = "Revenue Category")) %>% 
+    arrange(-`FY 2022 Revenues ($ billions)`)%>%
+  #select(-c(Dollars_2021, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`)) %>%
+  rename( "Compound Annual Growth, 1998-2022*" = `24 Year CAGR`, 
+          "FY2022 Revenue Category" = Category_name ) %>%
+  select(-c(Dollars_2021, Dollars_2022, `1 Year CAGR`:`10 Year CAGR`)) 
+
+revenue_change %>% 
+  kbl(caption = "Yearly Change in Revenue") %>% 
+  kable_styling(bootstrap_options = c("striped"))
+
+expenditure_change <- exp_long %>%
+  select(-c(type,Category)) %>%
+  filter(Year > 2020) %>%
+  pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
+  mutate("FY 2022 Expenditures ($ billions)" = round(Dollars_2022/1000, digits = 1),
+  #  "Change from 2021 to 2022" = Dollars_2022 - Dollars_2021,
+         "Percent Change from 2021 to 2022" = round((Dollars_2022 -Dollars_2021)/Dollars_2021*100, digits = 2) )%>%
+  left_join(CAGR_expenditures_summary, by = c("Category_name" = "Expenditure Category")) %>% 
+  arrange(-`FY 2022 Expenditures ($ billions)`)%>%
+  select(-c(Dollars_2022, Dollars_2021, `1 Year CAGR`:`10 Year CAGR`)) %>%
+  rename( "Compound Annual Growth, 1998-2022*" = `24 Year CAGR`, 
+          "FY2022 Expenditure Category" = Category_name )
+
+expenditure_change %>% 
+  kbl(caption = "Yearly Change in Expenditures") %>% 
+  kable_styling(bootstrap_options = c("striped"))
+           
+```
+
+# Create summary file
+
+Saves main items in one excel file named `summary_file.xlsx`. Delete `eval=FALSE` to run on local computer.
+
+```{r }
+#install.packages("openxlsx")
+library(openxlsx)
+
+dataset_names <- list('rev_long' = rev_long, 'exp_long' = exp_long, 
+                      `Table 1` = expenditure_change, `Table 2` = revenue_change,
+                      'Table 4.a' = CAGR_revenue_summary, 'Table 4.b' = CAGR_expenditures_summary, 
+                      'year_totals' = year_totals)
+
+write.xlsx(dataset_names, file = 'summary_file_FY2022.xlsx')
+```
