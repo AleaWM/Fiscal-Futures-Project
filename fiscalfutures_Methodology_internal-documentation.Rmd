@@ -12,6 +12,11 @@ output:
 
 ---
 
+This is an old version of the code. The website has moved to [https://aleawm.github.io/Fiscal-Futures/](https://aleawm.github.io/Fiscal-Futures/). 
+
+Code can be found for the website at [https://github.com/AleaWM/Fiscal-Futures](https://github.com/AleaWM/Fiscal-Futures). 
+
+
 
 ```{r warning = FALSE, message=FALSE}
 
@@ -117,7 +122,7 @@ The code chunk below takes the .dta files for all fiscal years before FY 2022 an
 
 For FY 2023 and after, .dta files can be avoided entirely and .csv or excel files will be used. All files before this year had been saved and passed on as .dta files for Stata code before the transition to R in Fall 2022.  For years after fy22: add line of code to bind csv files after binding the dta files together. Variable names must identical to merge files together.
 
-```{r create-rev-csv-FY22, include=FALSE, eval=FALSE}
+```{r create-rev-csv-FY22, eval=FALSE}
 # years after fy22: add line of code to bind csv files after binding the dta files.
 setwd("C:/Users/aleaw/OneDrive/Documents/PhD Fall 2021 - Spring 2022/Merriman RA/Fiscal Futures FY2022/Replication-Files/revenue")
 
@@ -154,13 +159,6 @@ allexpfiles22 <- read_csv("allexpfiles22.csv") #combined but not recoded
 ```
 
 
-
-
-
-
-
- 
-
 ## Inspecting new FY22 data files
 
 Data files for closed years have been obtained from IOC. The numbers of funds, agencies, organizations, and revenue sources below were found by using pivot tables in the codebook files in the FY2022 Box folder. This could also be done using R and grouping new files by fund, agency, source number, source names, etc..
@@ -180,9 +178,12 @@ Expenditure File:
 ### Finding new agencies and funds
 
 General steps:  
-1. Identify new and reused funds for newest fiscal year. 
-2. Recode funds to take into account different fund numbers/names over the years. See [Recoding New and Reused Funds] for code chunk that does this. 
-3. Update fund_ab_in_2022.xlsx with any changes from previous fiscal year.   
+
+1. Identify new and reused funds for newest fiscal year.    
+2. Recode funds to take into account different fund numbers/names over the years. See [Recoding New and Reused Funds] for code chunk that does this.  
+3. Update fund_ab_in_2022.xlsx with any changes from previous fiscal year.     
+
+
 
 
 **New Agencies, Funds, and Organizations from Expenditure files:**
@@ -198,82 +199,151 @@ allexpfiles22 <- read_csv("allexpfiles22.csv") #combined but not recoded
 #### From Expenditure Data #####
 
 # agencies referenced in any year before 2020:
-agencies_past <- allexpfiles22 %>% filter(fy < 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% unique() %>% summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>% drop_na() %>% arrange(agency)
+agencies_past <- allexpfiles22 %>% 
+  filter(fy < 2022) %>% 
+  mutate(agency == as.character(agency)) %>% 
+  group_by(agency, agency_name) %>% unique() %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE)) %>% 
+  drop_na() %>% 
+  arrange(agency)
 # agencies_past # 146 agencies ever
 
 
 # agencies in 2022 data:
-agencies22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% summarize(expenditure = sum(expenditure, na.rm = TRUE))
+agencies22 <- allexpfiles22  %>% 
+  filter(fy == 2022) %>% 
+  mutate(agency == as.character(agency)) %>% 
+  group_by(agency, agency_name) %>% 
+  summarize(expenditure = sum(expenditure, na.rm = TRUE))
 # agencies22 # 107 agencies this year
 
 
 # 280 and 533 are new agency codes: 
-anti_join(agencies22, agencies_past, by = c("agency", "agency_name")) %>% arrange(agency)
+anti_join(agencies22, agencies_past, 
+          by = c("agency", "agency_name")) %>% 
+  arrange(agency)
 
 
 
 
-funds_past <- allexpfiles22  %>% filter(fy < 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>% summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE))  %>% drop_na()
+funds_past <- allexpfiles22  %>% 
+  filter(fy < 2022) %>% 
+  mutate(fund == as.character(fund)) %>% 
+  group_by(fund, fund_name) %>% 
+  summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE))  %>% 
+  drop_na()
 
-funds22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>%  summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE)) %>% unique()
+funds22 <- allexpfiles22  %>% 
+  filter(fy == 2022) %>% 
+  mutate(fund == as.character(fund)) %>% 
+  group_by(fund, fund_name) %>%  
+  summarize(count = n(), Expenditure = sum(expenditure, na.rm = TRUE)) %>% 
+  unique()
 
 
 # 15 funds were in FY22 data that were not in past data:
-anti_join(funds22, funds_past, by = c("fund", "fund_name")) %>% arrange(fund)
+anti_join(funds22, funds_past, 
+          by = c("fund", "fund_name")) %>% 
+  arrange(fund)
 
 # orgs_pastin the past =  916 org groups ever
-orgs_past <- allexpfiles22  %>% filter(fy < 2022) %>% mutate(appr_org == as.character(appr_org)) %>% group_by(appr_org, org_name) %>% unique() %>% summarize(Expenditure = sum(expenditure, na.rm = TRUE)) %>% drop_na()
+orgs_past <- allexpfiles22  %>% 
+  filter(fy < 2022) %>% 
+  mutate(appr_org == as.character(appr_org)) %>% 
+  group_by(appr_org, org_name) %>% unique() %>% 
+  summarize(Expenditure = sum(expenditure, na.rm = TRUE)) %>% 
+  drop_na()
 
 # orgs_past # 916 org groups ever
-orgs22 <- allexpfiles22  %>% filter(fy == 2022) %>% mutate(appr_org = as.character(appr_org)) %>% group_by(appr_org, org_name) %>% summarize(Expenditure = sum(expenditure, na.rm = TRUE))
+orgs22 <- allexpfiles22  %>% 
+  filter(fy == 2022) %>% 
+  mutate(appr_org = as.character(appr_org)) %>% 
+  group_by(appr_org, org_name) %>% 
+  summarize(Expenditure = sum(expenditure, na.rm = TRUE))
 # orgs22 # 396 org groups this year
 
 
 # 4 org number and org name combos are new for FY2022:
-anti_join(orgs22, orgs_past, by = c("appr_org", "org_name")) %>% arrange(appr_org)
+anti_join(orgs22, orgs_past,
+          by = c("appr_org", "org_name")) %>% 
+  arrange(appr_org)
 ```
 
 
 **New Revenue Funds, Sources, and New Agencies:**
 
-```{r}
+```{r  }
 #### From Revenue Data ####
 
 
 
 # agencies_past # 108 agencies ever
-agencies_past <- allrevfiles22  %>% filter(fy < 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% unique() %>% summarize(Receipts = sum(receipts, na.rm = TRUE)) %>% drop_na()
+agencies_past <- allrevfiles22  %>% filter(fy < 2022) %>% 
+  mutate(agency == as.character(agency)) %>% 
+  group_by(agency, agency_name) %>% unique() %>% 
+  summarize(Receipts = sum(receipts, na.rm = TRUE)) %>% 
+  drop_na()
 
 
 # agencies22 # 80 agencies this year
-agencies22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(agency == as.character(agency)) %>% group_by(agency, agency_name) %>% summarize(Receipts = sum(receipts, na.rm = TRUE))
+agencies22 <- allrevfiles22  %>% 
+  filter(fy == 2022) %>% 
+  mutate(agency == as.character(agency)) %>% 
+  group_by(agency, agency_name) %>% 
+  summarize(Receipts = sum(receipts, na.rm = TRUE))
 
 # 0 new agencies in revenue data this year
-anti_join(agencies22, agencies_past, by = c("agency", "agency_name")) %>% arrange(agency)
+anti_join(agencies22, agencies_past, by = c("agency", "agency_name")) %>% 
+  arrange(agency)
 
 
-funds_past <- allrevfiles22  %>% filter(fy < 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>% summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %>% drop_na()
+funds_past <- allrevfiles22  %>% 
+  filter(fy < 2022) %>% 
+  mutate(fund == as.character(fund)) %>% 
+  group_by(fund, fund_name) %>% 
+  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %>% 
+  drop_na()
 
-funds22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(fund == as.character(fund)) %>% group_by(fund, fund_name) %>%  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %>% unique() %>% drop_na()
+funds22 <- allrevfiles22  %>% 
+  filter(fy == 2022) %>% 
+  mutate(fund == as.character(fund)) %>% 
+  group_by(fund, fund_name) %>%  
+  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %>% 
+  unique() %>% 
+  drop_na()
 
 # 19 revenue funds were in FY22 revenue data that were not in past data 
 # some could be small fund name changes
-anti_join(funds22, funds_past, by = c("fund", "fund_name")) %>% arrange(fund)
+anti_join(funds22, funds_past, by = c("fund", "fund_name")) %>% 
+  arrange(fund)
 
 
 
-sources_past <- allrevfiles22  %>% filter(fy < 2022) %>% mutate(source == as.character(source)) %>% group_by(source, source_name) %>% summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %>% drop_na()
+sources_past <- allrevfiles22  %>% 
+  filter(fy < 2022) %>% 
+  mutate(source == as.character(source)) %>% 
+  group_by(source, source_name) %>% 
+  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE))  %>% 
+  drop_na()
 
-sources22 <- allrevfiles22  %>% filter(fy == 2022) %>% mutate(source == as.character(source)) %>% group_by(source, source_name) %>%  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %>% unique()
+sources22 <- allrevfiles22  %>% 
+  filter(fy == 2022) %>% 
+  mutate(source == as.character(source)) %>% 
+  group_by(source, source_name) %>% 
+  summarize(count = n(), Receipts = sum(receipts, na.rm = TRUE)) %>% 
+  unique()
 
 
 # 20 revenue sources were in FY22 data that were not in past data 
 # some could be small source name changes:
-anti_join(sources22, sources_past, by = c("source", "source_name")) %>% arrange(source)
+anti_join(sources22, sources_past, by = c("source", "source_name")) %>% 
+  arrange(source)
 
 ```
 
-Sources 2737 through 2756 were not found in the IOC_source file so I added them to `ioc_source_updated22_AWM.xlsx`. They do NOT have a rev_type until the Fiscal Futures researchers discuss which revenue type the sources fall under and if they should be included in the analysis in general.
+Sources 2737 through 2756 were not found in the IOC_source file so I added them to `ioc_source_updated22_AWM.xlsx`. They do NOT have a rev_type in the file so each source must be searched on the Comptrollers website. We could ask for a variable key from the comptroller for a list of all revenue sources and their revenue type in the future to make our lives easier. I had to look at the sources within each revenue type to find the ones missing and then manually update our ioc_source file. Most of these were considered type 39, "Licenses, Fees, & Registrations". These were finally updated on January 20th 2023 after totals were created for the FY22 paper. 
+
+> To do: Double check ioc_source file "local" variable. Make sure it is still accurate and that it isn't missing any local sources.  
 
 
 ### Recoding New and Reused Funds
@@ -1421,9 +1491,21 @@ debt_keep_yearly <- debt_keep %>% group_by(fy, group) %>% summarize(debt_cost = 
 
 __Medicaid.__ That portion of the Healthcare and Family Services (or Public Aid in earlier years, agency code 478) budget for Medical (appr_organization code 65) for awards and grants (object codes 4400 and 4900).  
 
-> State CURE will remain in the Medicaid expenditure category due to the nature of it being federal funds providing public health services and funding to locations that provide public services.
+Jan 2015 FF Documentation - "Typically, presentations of the Illinois budget—for example, the Illinois Office of the Comptroller’s Fiscal Focus reports—use "medical assistance payments" made by the Department of Healthcare and Family Services (DHFS) as a proxy for Medicaid expenditures but these numbers include both Medicaid and non-Medicaid expenditures such as state-funded medical programs (e.g. AllKids). Medicaid expenditures are not limited to medical assistance in DHFS - the program also covers clients of home and community-based care programs that are administered by the Department of Human Services and Department of Aging. Because Medicaid is an entitlement,
+it is a reimbursement for medical care for qualifying individuals. Medical bills may be paid from designated funds by any of several agencies that have spending authority from those funds, as they provide health care services to individuals who qualify for Medicaid or another form of assistance. So, the numbers for medical assistance payments from DHFS may both over-state and underestimate the costs (and growth rate) of the actual Medicaid program. This is a legitimate concern, because the expenditure numbers for Illinois’ medical assistance payments do not correspond to the numbers disseminated by national Medicaid data sources"
 
-- Uses same appropriation name of "HEALTHCARE PROVIDER RELIEF" and fund == 0793 and obj_seq_type == 49000000. So can defend the "mistake" of including healthcare provider relief as Medicaid expenditure. 
+- 2015 Documentation notes that federal cash receipts for Medicaid are used to estimate Medicaid expenditures from the General Revenue Fund (GRF) by dividing the cash receipts by the match rate. Medicaid expenditures from specially-designated funds are assumed to be the warrants issued from those funds. Then the two components—GRF and special funds—are added together for a total number. (Note that the number for FF Medicaid expenditures includes the state portion and the federal portion combined. Past code uses sequence variable also to identify CHIP and GRF (sequence = 20, 54, 61, 62, or 65).
+ 
+
+
+- Department of Healthcare and Family Services administers medical assistance programs (e.g. Medicaid, CHIP, All Kids). The Fiscal Futures model moves Medicaid and CHIP expenditures to their own expenditure category. State funded programs remain in DHFS.
+
+
+> Side note: State CURE healthcare provider relief will remain in the Medicaid expenditure category due to the nature of it being federal funds providing public health services and funding to locations that provide public services.
+
+- Uses same appropriation name of "HEALTHCARE PROVIDER RELIEF" and fund == 0793 and obj_seq_type == 49000000. So can defend including healthcare provider relief as Medicaid expenditure. 
+
+
 
 
 ```{r Medicaid-check, include = FALSE, eval=FALSE}
@@ -1438,7 +1520,7 @@ medicaid_check %>% group_by(fy) %>% summarize(sum = sum(expenditure)) %>% arrang
 medicaid_check %>% filter(fy>2020) %>% group_by(wh_approp_name,fy) %>% summarize(sum=sum(expenditure)) %>% arrange(wh_approp_name)
 ```
 
-Federal Medical Assistance Program (FMAP): in 1965. The FMAP formula compares the state per-capita income to the national per-capita income. There is no cap on the dollar amount that the federal government pays, so the morethat a state spends the more that it receives. a maximum of 83%. States with a higher per-capita income receive lower FMAP funding but no less than 50%, and the states that have a lower per-capita income receive higher FMAP funding. Those that need more, get more. 
+Federal Medical Assistance Program (FMAP): in 1965. The FMAP formula compares the state per-capita income to the national per-capita income. There is no cap on the dollar amount that the federal government pays, so the more that a state spends the more that it receives. a maximum of 83%. States with a higher per-capita income receive lower FMAP funding but no less than 50%, and the states that have a lower per-capita income receive higher FMAP funding. Those that need more, get more. 
 
 
 
@@ -1460,7 +1542,7 @@ exp_temp <- exp_temp %>%
       
       agency == "586" ~ "959", # create new K-12 group
 
-      agency=="402" | agency=="418" | agency=="478" | agency=="444" | agency=="482" ~ as.character(agency), # aging, CFS, HFS, human services, public health
+      agency=="402" | agency=="418" | agency=="478" | agency=="444" | agency=="482" ~ as.character(agency), # aging, Children and Family Services (DCFS), Healthcare and Family Services (DHFS), human services (DHS), public health (DPH)
       T ~ as.character(group))
     ) %>%      
 
@@ -1632,6 +1714,32 @@ rev_temp <- rev_temp %>%
 
 
 ### Federal Revenue
+
+The Fiscal Futures Model divides federal funds (IOC revenue type = 57) into Medicaid, Transportation, and All Other Federal Funds. These can include: Health and Human Services Grants, Federal Stimulus Package, Department of Education Grants, Department of Transportation Grants, Department of Agriculture Grants, TANF Grants, and Department of Labor Grants.
+
+Federal Medicaid: DHFS receives money for Medicaid that is deposited into the General Revenue Fund. There are also Special State Funds used for Medicaid that receive specific revenues (e.g. Healthcare Provider Taxes) which are matched with Federal Funds. The federal receipts in these special funds are aggregated and added to the federal receipts in the GRF that are received by DHFS. 
+
+Sources:
+
+- 618 = Health and Human Services (not used)  
+- 660 = HHS/Hospital Participation   
+- 676 = Medical Assistance  
+- 692 = Medical Assistance  
+- 1552 = DHHS/ FFP-Medicaid Rehab Option
+- 2306 = Enhanced Fed Fin PART-ARRA 
+- 2076 = IDPH-HHS/CMS   
+- 2364 = Department of Insurance (not used)
+
+Other potential medicaid sources from CTRL-Fing "med" in revenue sources:   
+Sources: 2104 = Medicare Part D & 675 = Medical Administration
+
+- Revenue Source=1530 is labeled Medicaid Matching in IOC Sources list but it isn't used? 2140 is Matching Grant Monies but is also not used?   
+
+
+The Department of Healthcare and Family Services (DHFS) receives federal monies for Medicaid that are deposited into the General Revenue Fund. In addition, a number of special state funds(approximately 20) are used for Medicaid. These funds receive specific revenues  –e.g., Healthcare Provider Taxes—which are then matched with federal monies at approximately 50 percent. There are differences in the proportion of federal vs. state monies in the various funds, but the key is that there is a significant federal component to the receipts in the funds. The federal receipts in these special funds are aggregated and added to the federal receipts in the GRF that are received by DHFS.
+
+
+Transportation: If Agency is 494 and considered Federal Revenue, then it is recoded to its own category of "Federal Transportation".
 
 ```{r create-rev-federal-transfers}
 #rev_temp <- rev_temp %>% filter(in_ff==1)
@@ -3128,11 +3236,11 @@ The 10 largest revenue sources and 13 largest expenditure sources remain separat
 - take ff_rev and ff_exp data frames, which were in wide format, pivot them longer and mutate the Category_name variable to nicer labels. Keep largest categories separate and aggregate the rest. 
 
 ```{r }
-#exp_totals <- ff_exp %>% rowwise() %>% mutate(exp_TOTALS = sum(across(exp_402:exp_970))) # creates total column too
+exp_totals <- ff_exp %>% rowwise() %>% mutate(exp_TOTALS = sum(across(exp_402:exp_970))) # creates total column too
 
-#rev_totals <- ff_rev %>% rowwise() %>%  mutate(rev_TOTALS = sum(across(rev_02:rev_78)))
+rev_totals <- ff_rev %>% rowwise() %>%  mutate(rev_TOTALS = sum(across(rev_02:rev_78)))
 
-rev_long <- pivot_longer(rev_totals, rev_02:rev_TOTALS, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
+rev_long_majorcats <- pivot_longer(rev_totals, rev_02:rev_TOTALS, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
   rename(Year = fy) %>%
   mutate(Category_name = case_when(
     Category == "02" ~ "Income Tax" ,
@@ -3183,13 +3291,13 @@ T ~ "All Other Sources **" # any other Category number that was not specifically
 
 
 # creates wide version of table where each revenue source is a column
-revenue_wide2 <- rev_long %>% pivot_wider(names_from = Category_name, 
+revenue_wide_majorcats <- rev_long_majorcats %>% pivot_wider(names_from = Category_name, 
               values_from = Dollars) %>%
   relocate("All Other Sources **", .after = last_col()) %>%
   relocate("Total Revenue", .after =  last_col())
 
 
-exp_long <- pivot_longer(exp_totals, exp_402:exp_TOTALS , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
+exp_long_majorcats <- pivot_longer(exp_totals, exp_402:exp_TOTALS , names_to = c("type", "Category"), values_to = "Dollars", names_sep = "_") %>% 
   rename(Year = fy ) %>% 
   mutate(Category_name = 
            case_when(
@@ -3236,7 +3344,7 @@ exp_long <- pivot_longer(exp_totals, exp_402:exp_TOTALS , names_to = c("type", "
   group_by(Year, Category_name) %>% 
   summarise(Dollars= round(sum(Dollars),digits=2))
 
-expenditure_wide2 <- exp_long%>% 
+expenditure_wide_majorcats <- exp_long_majorcats %>% 
   pivot_wider(names_from = Category_name, 
               values_from = Dollars) %>%
   relocate("All Other Expenditures **", .after = last_col()) %>%
@@ -3247,7 +3355,7 @@ expenditure_wide2 <- exp_long%>%
 
 # function for calculating the CAGR
 calc_cagr <- function(df, n) {
-  df <- exp_long %>%
+  df <- exp_long_majorcats %>%
     #select(-type) %>%
     arrange(Category_name, Year) %>%
     group_by(Category_name) %>%
@@ -3257,34 +3365,34 @@ calc_cagr <- function(df, n) {
 }
 
 # This works for one variable at a time
-cagr_24 <- calc_cagr(exp_long, 24) %>% 
+cagr_24 <- calc_cagr(exp_long_majorcats, 24) %>% 
   # group_by(Category) %>%
   summarize(cagr_24 = round(sum(cagr*100, na.rm = TRUE), 2))
 
-cagr23_precovid <- exp_long %>%
+cagr23_precovid <- exp_long_majorcats %>%
   filter(Year <= 2019) %>%
   calc_cagr(21) %>% 
   summarize(cagr_21 = round(sum(cagr*100, na.rm = TRUE), 2))
 
 
 
-cagr_10 <- calc_cagr(exp_long, 10) %>% 
+cagr_10 <- calc_cagr(exp_long_majorcats, 10) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_10 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-cagr_5 <- calc_cagr(exp_long, 5) %>% 
+cagr_5 <- calc_cagr(exp_long_majorcats, 5) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_5 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-cagr_3 <- calc_cagr(exp_long, 3) %>% 
+cagr_3 <- calc_cagr(exp_long_majorcats, 3) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_3 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-cagr_2 <- calc_cagr(exp_long, 2) %>% 
+cagr_2 <- calc_cagr(exp_long_majorcats, 2) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_2 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-cagr_1 <- calc_cagr(exp_long, 1) %>% 
+cagr_1 <- calc_cagr(exp_long_majorcats, 1) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_1 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
@@ -3304,7 +3412,7 @@ CAGR_expenditures_majorcats_tot%>%
 
 
 # Yearly change for Top 13 largest expenditure categories
-expenditure_change2 <- exp_long %>%
+expenditure_change_majorcats <- exp_long_majorcats %>%
   filter(Year > 2020) %>%
   pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
   mutate("FY 2022 ($ Billions)" = round(Dollars_2022/1000, digits = 1),
@@ -3317,11 +3425,11 @@ expenditure_change2 <- exp_long %>%
   rename( "24-Year CAGR" = `24 Year CAGR`, 
           "Expenditure Category" = Category_name )
 
-expenditure_change2 <- move_to_last(expenditure_change2, 3) 
+expenditure_change_majorcats <- move_to_last(expenditure_change_majorcats, 3) 
 
-expenditure_change2 <- move_to_last(expenditure_change2, 1)
+expenditure_change_majorcats <- move_to_last(expenditure_change_majorcats, 1)
 
-expenditure_change2 %>% 
+expenditure_change_majorcats %>% 
   kbl(caption = "Yearly Change in Expenditures", row.names = FALSE, align = "l") %>% 
   kable_classic() %>%
     row_spec(15, bold = T, color = "black", background = "gray")
@@ -3337,7 +3445,7 @@ Top 10 revenue sources CAGRs and Yearly Change Tables:
 
 
 calc_cagr <- function(df, n) {
-  df <- rev_long %>%
+  df <- rev_long_majorcats %>%
     arrange(Category_name, Year) %>%
     group_by(Category_name) %>%
     mutate(cagr = ((Dollars / lag(Dollars, n)) ^ (1 / n)) - 1)
@@ -3346,27 +3454,27 @@ calc_cagr <- function(df, n) {
 }
 
 # This works for one variable at a time
-cagr_24 <- calc_cagr(rev_long, 24) %>% 
+cagr_24 <- calc_cagr(rev_long_majorcats, 24) %>% 
      # group_by(Category) %>%
   summarize(cagr_24 = round(sum(cagr*100, na.rm = TRUE), 2))
 
-cagr_10 <- calc_cagr(rev_long, 10) %>% 
+cagr_10 <- calc_cagr(rev_long_majorcats, 10) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_10 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-cagr_5 <- calc_cagr(rev_long, 5) %>% 
+cagr_5 <- calc_cagr(rev_long_majorcats, 5) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_5 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-cagr_3 <- calc_cagr(rev_long, 3) %>% 
+cagr_3 <- calc_cagr(rev_long_majorcats, 3) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_3 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
-cagr_2 <- calc_cagr(rev_long, 2) %>% 
+cagr_2 <- calc_cagr(rev_long_majorcats, 2) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_2 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
- cagr_1 <- calc_cagr(rev_long, 1) %>% 
+ cagr_1 <- calc_cagr(rev_long_majorcats, 1) %>% 
   filter(Year == 2022) %>%
   summarize(cagr_1 = case_when(Year == 2022 ~ round(sum(cagr*100, na.rm = TRUE), 2)))
 
@@ -3378,12 +3486,12 @@ CAGR_revenue_majorcats_tot <- move_to_last(CAGR_revenue_majorcats_tot,1)
 CAGR_revenue_majorcats_tot <- move_to_last(CAGR_revenue_majorcats_tot,11)
 
 CAGR_revenue_majorcats_tot %>% 
-  kbl(caption = "CAGR Calculations for Revenue Sources", row.names = FALSE) %>% 
+  kbl(caption = "CAGR Calculations for Largest Revenue Sources", row.names = FALSE) %>% 
      kable_classic() 
 
 
 ###### Yearly change summary table for Top 10 Revenues #####
-revenue_change2 <- rev_long %>%
+revenue_change_majorcats <- rev_long_majorcats %>%
   #select(-c(Category)) %>%
   filter(Year > 2020) %>%
   pivot_wider(names_from = Year , values_from = Dollars,   names_prefix = "Dollars_") %>%
@@ -3399,12 +3507,12 @@ revenue_change2 <- rev_long %>%
   rename("Revenue Category" = Category_name ) %>%
   select(-c(Dollars_2022, Dollars_2021, `1 Year CAGR`:`24 Year CAGR`)) 
 
-revenue_change2 <- move_to_last(revenue_change2,6)
+revenue_change_majorcats <- move_to_last(revenue_change_majorcats,6)
 
-revenue_change2 <- move_to_last(revenue_change2,1)
+revenue_change_majorcats <- move_to_last(revenue_change_majorcats,1)
 
-revenue_change2%>% 
-  kbl(caption = "Yearly Change in Revenue", row.names = FALSE, align = "l") %>% 
+revenue_change_majorcats%>% 
+  kbl(caption = "Yearly Change in Revenue for Main Revenue Sources", row.names = FALSE, align = "l") %>% 
    kable_classic() %>%
     row_spec(12, bold = T, color = "black", background = "gray")
 
@@ -3436,18 +3544,22 @@ library(openxlsx)
 dataset_names <- list('Aggregate Revenues' = revenue_wide2, 
                       'Aggregate Expenditures' = expenditure_wide2, 
 
+
                       
-                      'Table 1' = expenditure_change2, #Top categories with yearly change, 23 yr cagr
-                      'Table 2' = revenue_change2,
+                      'Table 1' = revenue_change_majorcats, #Top categories with yearly change, 23 yr cagr
+                      'Table 2' = expenditure_change_majorcats,
                       
-                     # 'Table 4.a' = CAGR_revenue_summary_majorcats, # Categories Match Table 1 in paper
-                     # 'Table 4.b' = CAGR_expenditures_summary_majorcats, 
+                      'Table 1a. AllCats' = revenue_change2,
+                      'Table 2a. AllCats' = expenditure_change2,
+                      
+                      'CAGR Rev-MajorCats' = CAGR_revenue_majorcats_tot, # Categories Match Table 1 in paper
+                      'CAGR Exp-MajorCats' = CAGR_expenditures_majorcats_tot, 
                                             
                      # 'Table 1-AllCats' = expenditure_change_allcats,  # All Categories by Year
                     #  'Table 2-AllCats' = revenue_change_allcats,
                       
-                      'Agg_Revenue-AllCats' = CAGR_revenue_summary_tot, 
-                      'Agg_Expenditures-AllCats' = CAGR_expenditures_summary_tot, 
+                    #  'CAGR_Revenue-AllCats' = CAGR_revenue_summary_tot, 
+                   #   'CAGR_Expenditures-AllCats' = CAGR_expenditures_summary_tot, 
                       
                       'Fiscal Gap' = year_totals,    # Total Revenue, Expenditure, and Fiscal gap per year
                       
@@ -3572,7 +3684,7 @@ ff_rev <- ff_rev %>%
          rev_35 = rev_35 - ref_35
 
          ) %>% 
-  select(-c(ref_02:ref_35, rev_99, rev_NA, rev_76
+  select(-c(ref_02:ref_35, rev_99, rev_76
             ))
 
 rev_long <- pivot_longer(ff_rev, rev_02:rev_78, names_to = c("type","Category"), values_to = "Dollars", names_sep = "_") %>% 
@@ -3765,7 +3877,7 @@ Compare with and without federal COVID dollars:
 library(gridExtra)
 
 cowplot::plot_grid(fiscal_gap1,
-                   fiscal_gap_droppedCURE, nrow=1)
+                   fiscal_gap_droppedCURE, nrow=1, labels = c("With ARPA State CURE Funds", "Without ARPA State Cure Funds"))
 ```
 
 
